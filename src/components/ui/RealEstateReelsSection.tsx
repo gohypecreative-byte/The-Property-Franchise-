@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -12,6 +13,8 @@ import {
   Volume2,
   VolumeX,
   MapPin,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { scifiAudio } from "@/lib/audio";
 
@@ -142,11 +145,7 @@ export const REEL_PROPERTIES: ReelProperty[] = [
     videoSrc: "/sample_video.mp4",
     description:
       "Next-generation high-throughput logistics facility with 40-foot clear ceiling heights, 120 cross-dock loading bays, and full rooftop solar array.",
-    features: [
-      "120 Cross-Dock Bays",
-      "40' Clear Height",
-      "100% Rooftop Solar",
-    ],
+    features: ["120 Cross-Dock Bays", "40' Clear Height", "100% Rooftop Solar"],
   },
   {
     id: "metropolis-exchange",
@@ -176,310 +175,352 @@ interface RealEstateReelsSectionProps {
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
+interface ReelLayout {
+  vw: number;
+  vh: number;
+  cardW: number;
+  cardH: number;
+  gap: number;
+  padX: number;
+  cardTop: number;
+  stackOffsetY: number;
+  overflow: number;
+}
+
+// Stacking deck geometry (organic rotations and subtle offsets)
+const STACK_ROTATIONS = [-3.2, 2.6, -2.0, 2.2, -1.4, 1.6];
+const STACK_OFFSETS_X = [-16, 16, -12, 12, -6, 6];
+const STACK_OFFSETS_Y = [10, -8, 6, -4, 4, 0];
+
+const CAPTION_H = 22;
+const MEDIA_RATIO = 0.74; // width / height of the reel frame
+const STACK_SCALE = 0.42;
+
+const clamp01 = (v: number) => Math.min(Math.max(v, 0), 1);
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+const smoothstep = (t: number) => t * t * (3 - 2 * t);
+
 export function RealEstateReelsSection({
   scrollContainerRef,
 }: RealEstateReelsSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const hintRef = useRef<HTMLDivElement>(null);
 
-  // References for all persistent card elements
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const captionRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
-  // Automatic entrance progress proxy (runs on section mount without scrolling)
-  const autoEntranceProxy = useRef<{ value: number }>({ value: 0 });
-  const autoEntranceDoneRef = useRef<boolean>(false);
+  const layoutRef = useRef<ReelLayout | null>(null);
+  const [cardSize, setCardSize] = useState({ w: 0, h: 0, top: 0 });
 
-  // Scroll progress proxy (controls horizontal navigation after entrance)
-  const scrollProxy = useRef<{ value: number }>({ value: 0 });
-  const viewportWidthRef = useRef<number>(1200);
-  const [, setViewportWidth] = useState<number>(1200);
-
-  // Audio milestone tracker
+  // Automatic emergence on mount (cards pop into a small centred stack)
+  const autoProxy = useRef<{ value: number }>({ value: 0 });
+  // Scrolled distance into the track (target from scroll, current eased)
+  const targetScrollRef = useRef<number>(0);
+  const currentScrollRef = useRef<number>(0);
   const lastSoundMilestoneRef = useRef<number>(-1);
 
+  const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   // Modal Video Viewer State
-  const [selectedProperty, setSelectedProperty] = useState<ReelProperty | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<ReelProperty | null>(
+    null,
+  );
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
+  const [videoProgress, setVideoProgress] = useState(0);
   const modalVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Stacking deck geometry (organic rotations and subtle offsets)
-  const stackRotations = [-2.8, 2.4, -1.8, 2.0, -1.2, 1.4];
-  const stackOffsetsX = [-14, 14, -10, 10, -6, 6];
-  const stackOffsetsY = [8, -6, 6, -4, 4, 0];
+  // --------------------------------------------------------------------------
+  // LAYOUT MEASUREMENT
+  // Cards are sized to fit between the sticky modal header and the progress
+  // line. Track height = viewport + horizontal overflow.
+  // --------------------------------------------------------------------------
+  const measure = useCallback(() => {
+    const viewport = viewportRef.current;
+    const track = containerRef.current;
+    if (!viewport || !track) return;
 
-  // Measure viewport width on mount and resize
-  useEffect(() => {
-    const handleResize = () => {
-      const width =
-        viewportRef.current?.clientWidth ||
-        (typeof window !== "undefined" ? window.innerWidth : 1200);
-      viewportWidthRef.current = width;
-      setViewportWidth(width);
-      renderCompositeScene(
-        autoEntranceProxy.current.value,
-        scrollProxy.current.value
-      );
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+    const isMobile = vw < 640;
+    const numCards = REEL_PROPERTIES.length;
+
+    const padX = isMobile ? 16 : 32;
+    const gap = isMobile ? 6 : 8;
+    const stripTop = isMobile ? 132 : 156; // modal header + editorial row
+    const bottomReserve = isMobile ? 44 : 56;
+
+    const availMediaH = Math.max(
+      160,
+      vh - stripTop - bottomReserve - CAPTION_H,
+    );
+    const cardW = Math.round(
+      Math.min(isMobile ? vw * 0.68 : vw * 0.27, availMediaH * MEDIA_RATIO),
+    );
+    const cardH = Math.round(cardW / MEDIA_RATIO) + CAPTION_H;
+    const cardTop = vh - bottomReserve - cardH;
+
+    // Stack sits centred in the strip area
+    const stripCenterY = (stripTop + (vh - bottomReserve)) / 2;
+    const stackOffsetY = stripCenterY - (cardTop + cardH / 2);
+
+    const rowWidth = padX * 2 + numCards * cardW + (numCards - 1) * gap;
+    const overflow = Math.max(0, rowWidth - vw);
+
+    layoutRef.current = {
+      vw,
+      vh,
+      cardW,
+      cardH,
+      gap,
+      padX,
+      cardTop,
+      stackOffsetY,
+      overflow,
     };
-
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    track.style.height = `${vh + overflow}px`;
+    setCardSize((prev) =>
+      prev.w === cardW && prev.h === cardH && prev.top === cardTop
+        ? prev
+        : { w: cardW, h: cardH, top: cardTop },
+    );
   }, []);
+
+  useEffect(() => {
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (viewportRef.current) ro.observe(viewportRef.current);
+    return () => ro.disconnect();
+  }, [measure]);
 
   // --------------------------------------------------------------------------
   // COMPOSITE SCENE RENDERER
-  // 1. autoP (0.00 -> 1.00): Automatic entrance triggered on section entry
-  //    - Starts small in the center
-  //    - Additional reels emerge, stack over one another, and gradually expand
-  //    - Once expanded, stack separates smoothly into aligned horizontal row
-  // 2. scrollP (0.00 -> 1.00): User scrolling purely drives horizontal movement
+  // 1. autoP (0 -> 1): plays automatically on open, no scrolling needed
+  //    - 0.00-0.40 reels emerge one by one into a small centred stack
+  //    - 0.42-0.68 the stack grows to full size
+  //    - 0.72-1.00 the stack fans out into an aligned horizontal row
+  // 2. horiz (0 -> 1): scrolling then travels the row horizontally
   // --------------------------------------------------------------------------
-  const renderCompositeScene = useCallback((autoP: number, scrollP: number) => {
-    const width = viewportWidthRef.current;
-    const isMobile = width < 640;
-    const isTablet = width >= 640 && width < 1024;
-    const isLarge = width >= 1440;
+  const renderScene = useCallback((autoP: number, scrolled: number) => {
+    const L = layoutRef.current;
+    if (!L) return;
     const numCards = REEL_PROPERTIES.length;
 
-    // Sized comfortably to fit vertically within the viewport without cropping
-    const fullCardWidth = isMobile
-      ? 205
-      : isTablet
-      ? 245
-      : isLarge
-      ? 295
-      : 265;
+    const horiz = L.overflow > 0 ? clamp01(scrolled / L.overflow) : 0;
 
-    const fullGap = isMobile ? 16 : isTablet ? 22 : 28;
-    const leftMargin = isMobile ? 20 : isTablet ? 40 : 64;
-    const galleryStartCenter = -(width / 2) + leftMargin + fullCardWidth / 2;
+    const expandT = easeOutCubic(clamp01((autoP - 0.42) / 0.26));
+    const spreadT = smoothstep(clamp01((autoP - 0.72) / 0.28));
+    const deckScale = STACK_SCALE + (1 - STACK_SCALE) * expandT;
 
-    const baseGalleryTargetsX = REEL_PROPERTIES.map((_, i) => {
-      return galleryStartCenter + i * (fullCardWidth + fullGap);
-    });
+    const stackCenterX = L.vw / 2 - L.cardW / 2;
 
-    const maxGalleryScroll = Math.max(
-      0,
-      baseGalleryTargetsX[numCards - 1] +
-        fullCardWidth / 2 -
-        (width / 2 - leftMargin)
-    );
-
-    // Initial scale when entering
-    const initialScale = isMobile ? 0.42 : 0.36;
-
-    // Phase 1 of auto entrance: Stacking & expansion (autoP: 0.00 -> 0.68)
-    const deckProgress = Math.min(1.0, Math.max(0, autoP / 0.68));
-    const easeDeck = 1 - Math.pow(1 - deckProgress, 2.2);
-    const currentDeckScale = initialScale + (1.0 - initialScale) * easeDeck;
-
-    // Sound milestones during emergence
-    const currentMilestone = Math.floor(autoP / 0.12);
+    // Sound milestones as reels emerge
+    const milestone = Math.floor((autoP / 0.4) * numCards);
     if (
-      currentMilestone !== lastSoundMilestoneRef.current &&
-      currentMilestone >= 1 &&
-      currentMilestone <= numCards
+      milestone !== lastSoundMilestoneRef.current &&
+      milestone >= 1 &&
+      milestone <= numCards
     ) {
-      lastSoundMilestoneRef.current = currentMilestone;
-      scifiAudio.playHoloBeep(840 + currentMilestone * 35, 0.04);
+      lastSoundMilestoneRef.current = milestone;
+      scifiAudio.playHoloBeep(840 + milestone * 35, 0.04);
     }
 
-    // Animate every persistent card
     for (let idx = 0; idx < numCards; idx++) {
       const cardEl = cardRefs.current[idx];
       if (!cardEl) continue;
 
-      let cardX = 0;
-      let cardY = 0;
-      let cardScale = 1;
-      let cardRotate = 0;
-      let cardOpacity = 0;
+      // Emergence: each reel rises into the stack in turn
+      const emergeStart = (idx / numCards) * 0.3;
+      const emergeT = easeOutCubic(clamp01((autoP - emergeStart) / 0.1));
 
-      const stackX = stackOffsetsX[idx % stackOffsetsX.length];
-      const stackY = stackOffsetsY[idx % stackOffsetsY.length];
-      const stackRot = stackRotations[idx % stackRotations.length];
-      const galleryX = baseGalleryTargetsX[idx];
+      const stackX =
+        stackCenterX + STACK_OFFSETS_X[idx % STACK_OFFSETS_X.length];
+      const stackY =
+        L.stackOffsetY + STACK_OFFSETS_Y[idx % STACK_OFFSETS_Y.length];
+      const stackRot = STACK_ROTATIONS[idx % STACK_ROTATIONS.length];
 
-      if (autoP <= 0.68) {
-        // ====================================================================
-        // AUTOMATIC PHASE 1: EMERGENCE, STACKING & SIZE EXPANSION
-        // ====================================================================
-        if (idx === 0) {
-          cardOpacity = 1.0;
-          cardScale = currentDeckScale;
-          cardX = stackX * easeDeck;
-          cardY = stackY * easeDeck;
-          cardRotate = stackRot * easeDeck;
-        } else {
-          const entryStart = 0.05 + (idx - 1) * (0.55 / (numCards - 1));
-          const entryEnd = entryStart + 0.12;
+      const rowX = L.padX + idx * (L.cardW + L.gap) - horiz * L.overflow;
 
-          if (autoP < entryStart) {
-            cardOpacity = 0;
-            cardScale = initialScale;
-            cardX = 0;
-            cardY = 80;
-            cardRotate = 0;
-          } else if (autoP <= entryEnd) {
-            const rawT = (autoP - entryStart) / (entryEnd - entryStart);
-            const easeEntry = 1 - Math.pow(1 - rawT, 3);
+      const x = stackX + (rowX - stackX) * spreadT;
+      const y = stackY * (1 - spreadT) + (1 - emergeT) * 90;
+      const rot = stackRot * (1 - spreadT) * emergeT;
+      const scale = deckScale * (0.9 + 0.1 * emergeT);
 
-            cardOpacity = Math.min(1.0, rawT * 2.2);
-            cardScale = currentDeckScale * (0.90 + 0.10 * easeEntry);
-            cardX = stackX * easeEntry;
-            cardY = stackY * easeEntry + (1 - easeEntry) * 65;
-            cardRotate = stackRot * easeEntry;
-          } else {
-            cardOpacity = 1.0;
-            cardScale = currentDeckScale;
-            cardX = stackX;
-            cardY = stackY;
-            cardRotate = stackRot;
-          }
-        }
-      } else if (autoP < 1.00) {
-        // ====================================================================
-        // AUTOMATIC PHASE 2: SPREAD FROM STACK INTO HORIZONTAL ROW
-        // ====================================================================
-        const spreadT = (autoP - 0.68) / (1.00 - 0.68);
-        const easeSpread = spreadT * spreadT * (3 - 2 * spreadT);
+      cardEl.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(
+        2,
+      )}px, 0) scale(${scale.toFixed(4)}) rotate(${rot.toFixed(2)}deg)`;
+      cardEl.style.opacity = Math.min(1, emergeT * 1.6).toFixed(3);
+      cardEl.style.pointerEvents = emergeT > 0.5 ? "auto" : "none";
 
-        cardOpacity = 1.0;
-        cardScale = 1.00;
-        cardX = stackX * (1 - easeSpread) + galleryX * easeSpread;
-        cardY = stackY * (1 - easeSpread);
-        cardRotate = stackRot * (1 - easeSpread);
-      } else {
-        // ====================================================================
-        // PHASE 3: SCROLL-CONTROLLED HORIZONTAL MOVEMENT
-        // Automatic animation is complete. Scrolling purely drives horizontal motion.
-        // ====================================================================
-        cardOpacity = 1.0;
-        cardScale = 1.00;
-        cardX = galleryX - scrollP * maxGalleryScroll;
-        cardY = 0;
-        cardRotate = 0;
-      }
-
-      // Hardware-accelerated GPU direct transform
-      cardEl.style.transform = `translate3d(${cardX.toFixed(2)}px, ${cardY.toFixed(
-        2
-      )}px, 0) scale(${cardScale.toFixed(4)}) rotate(${cardRotate.toFixed(2)}deg)`;
-      cardEl.style.opacity = cardOpacity.toFixed(3);
-      cardEl.style.pointerEvents = cardOpacity > 0.35 ? "auto" : "none";
+      const captionEl = captionRefs.current[idx];
+      if (captionEl) captionEl.style.opacity = spreadT.toFixed(3);
     }
+
+    if (progressBarRef.current) {
+      progressBarRef.current.style.transform = `scaleX(${horiz.toFixed(4)})`;
+    }
+
+    // Scroll hint appears once the row has formed, fades as scrolling begins
+    if (hintRef.current) {
+      const hintIn = clamp01((autoP - 0.92) / 0.08);
+      const hintOut = 1 - clamp01(horiz / 0.06);
+      hintRef.current.style.opacity = (hintIn * hintOut).toFixed(3);
+    }
+    return horiz;
   }, []);
 
   // --------------------------------------------------------------------------
-  // AUTOMATIC ENTRANCE ANIMATION (TRIGGERS UPON SECTION ENTRY WITHOUT SCROLLING)
+  // AUTOMATIC EMERGENCE ON OPEN
   // --------------------------------------------------------------------------
   useEffect(() => {
     scifiAudio.playHoloBeep(850, 0.08);
-
-    // Initial render at autoP = 0, scrollP = 0
-    renderCompositeScene(0, 0);
-
-    const autoTween = gsap.to(autoEntranceProxy.current, {
+    const tween = gsap.to(autoProxy.current, {
       value: 1,
-      duration: 2.5,
-      ease: "power2.inOut",
-      delay: 0.1,
-      onUpdate: () => {
-        renderCompositeScene(
-          autoEntranceProxy.current.value,
-          scrollProxy.current.value
-        );
-      },
-      onComplete: () => {
-        autoEntranceDoneRef.current = true;
-      },
+      duration: 4.2,
+      ease: "none",
+      delay: 0.2,
     });
-
     return () => {
-      autoTween.kill();
+      tween.kill();
     };
-  }, [renderCompositeScene]);
+  }, []);
 
   // --------------------------------------------------------------------------
-  // USER SCROLLING: CONTROLS ONLY HORIZONTAL MOVEMENT AFTER ENTRANCE
+  // SCROLL TRACKING + RENDER LOOP (eased toward scroll position)
   // --------------------------------------------------------------------------
   useEffect(() => {
     const container = scrollContainerRef?.current;
-    const target =
-      container || (typeof window !== "undefined" ? window : null);
-    if (!target) return;
+    const target: HTMLElement | Window = container || window;
 
     const handleScroll = () => {
-      if (!containerRef.current) return;
       const track = containerRef.current;
+      if (!track) return;
+      const rootTop = container ? container.getBoundingClientRect().top : 0;
+      targetScrollRef.current = Math.max(
+        0,
+        rootTop - track.getBoundingClientRect().top,
+      );
 
-      let scrollTop = 0;
-      let clientHeight = 0;
-      let trackTop = 0;
-      const trackHeight = track.offsetHeight;
-
-      if (container) {
-        scrollTop = container.scrollTop;
-        clientHeight = container.clientHeight;
-        trackTop = track.offsetTop;
-      } else {
-        scrollTop = window.scrollY || window.pageYOffset;
-        clientHeight = window.innerHeight;
-        const rect = track.getBoundingClientRect();
-        trackTop = rect.top + scrollTop;
-      }
-
-      const maxScroll = trackHeight - clientHeight;
-      if (maxScroll <= 0) return;
-
-      const rawProgress = (scrollTop - trackTop) / maxScroll;
-      const p = Math.min(Math.max(rawProgress, 0), 1);
-
-      // If user scrolls before auto-entrance completes, fast-forward auto-entrance
-      if (p > 0.01 && !autoEntranceDoneRef.current) {
-        autoEntranceDoneRef.current = true;
-        gsap.to(autoEntranceProxy.current, {
+      // Scrolling before emergence finishes fast-forwards it
+      if (targetScrollRef.current > 4 && autoProxy.current.value < 1) {
+        gsap.to(autoProxy.current, {
           value: 1,
-          duration: 0.3,
+          duration: 0.4,
           ease: "power2.out",
+          overwrite: true,
         });
       }
+    };
 
-      // Smooth horizontal scrubbing
-      gsap.to(scrollProxy.current, {
-        value: p,
-        duration: 0.25,
-        ease: "power2.out",
-        overwrite: "auto",
-        onUpdate: () => {
-          renderCompositeScene(
-            autoEntranceProxy.current.value,
-            scrollProxy.current.value
-          );
-        },
-      });
+    let rafId = 0;
+    let lastIndex = -1;
+    const tick = () => {
+      const diff = targetScrollRef.current - currentScrollRef.current;
+      currentScrollRef.current += Math.abs(diff) < 0.1 ? diff : diff * 0.1;
+
+      const horiz = renderScene(
+        autoProxy.current.value,
+        currentScrollRef.current,
+      );
+      if (horiz !== undefined) {
+        const idx = Math.round(horiz * (REEL_PROPERTIES.length - 1));
+        if (idx !== lastIndex) {
+          lastIndex = idx;
+          setActiveIndex(idx);
+        }
+      }
+      rafId = requestAnimationFrame(tick);
     };
 
     target.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
+    rafId = requestAnimationFrame(tick);
 
     return () => {
       target.removeEventListener("scroll", handleScroll);
-      gsap.killTweensOf(scrollProxy.current);
+      cancelAnimationFrame(rafId);
     };
-  }, [scrollContainerRef, renderCompositeScene]);
+  }, [scrollContainerRef, renderScene]);
+
+  // --------------------------------------------------------------------------
+  // PLAYBACK: reels play only while on screen, pause once scrolled out
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const video = entry.target as HTMLVideoElement;
+          if (entry.isIntersecting) {
+            video.play().catch(() => {});
+          } else {
+            video.pause();
+          }
+        });
+      },
+      { threshold: 0.15 },
+    );
+    videoRefs.current.forEach((v) => v && observer.observe(v));
+    return () => observer.disconnect();
+  }, []);
+
+  // Pause background reels while the full-screen viewer is open
+  useEffect(() => {
+    videoRefs.current.forEach((v) => {
+      if (!v) return;
+      if (selectedProperty) {
+        v.pause();
+      } else {
+        const rect = v.getBoundingClientRect();
+        if (rect.right > 0 && rect.left < window.innerWidth) {
+          v.play().catch(() => {});
+        }
+      }
+    });
+  }, [selectedProperty]);
+
+  const total = REEL_PROPERTIES.length;
+  const selectedIndex = selectedProperty
+    ? REEL_PROPERTIES.findIndex((p) => p.id === selectedProperty.id)
+    : -1;
 
   const handleOpenReel = (property: ReelProperty) => {
     scifiAudio.playHoloBeep(980, 0.1);
     setSelectedProperty(property);
     setIsPlaying(true);
+    setVideoProgress(0);
   };
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     scifiAudio.playHoloBeep(720, 0.08);
     setSelectedProperty(null);
-  };
+  }, []);
+
+  const handleStep = useCallback(
+    (delta: number) => {
+      if (selectedIndex < 0) return;
+      const next = (selectedIndex + delta + total) % total;
+      scifiAudio.playHoloBeep(900, 0.05);
+      setSelectedProperty(REEL_PROPERTIES[next]);
+      setIsPlaying(true);
+      setVideoProgress(0);
+    },
+    [selectedIndex, total],
+  );
+
+  // Keep the viewer's video element in sync with the play state
+  useEffect(() => {
+    const video = modalVideoRef.current;
+    if (!video) return;
+    if (isPlaying) {
+      video.play().catch(() => setIsPlaying(false));
+    } else {
+      video.pause();
+    }
+  }, [isPlaying, selectedProperty]);
 
   // Keyboard navigation for modal
   useEffect(() => {
@@ -492,256 +533,415 @@ export function RealEstateReelsSection({
         setIsPlaying((prev) => !prev);
       } else if (e.key === "m" || e.key === "M") {
         setIsMuted((prev) => !prev);
+      } else if (e.key === "ArrowRight") {
+        handleStep(1);
+      } else if (e.key === "ArrowLeft") {
+        handleStep(-1);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedProperty]);
-
-  const isMobile = viewportWidthRef.current < 640;
-  const isTablet =
-    viewportWidthRef.current >= 640 && viewportWidthRef.current < 1024;
-  const isLarge = viewportWidthRef.current >= 1440;
-  const fullCardWidth = isMobile
-    ? 205
-    : isTablet
-    ? 245
-    : isLarge
-    ? 295
-    : 265;
+  }, [selectedProperty, handleCloseModal, handleStep]);
 
   return (
     <section
       id="real-estate-reels"
-      className="relative z-20 bg-[#FCF8F3] text-[#012169] selection:bg-[#A10728] selection:text-[#FCF8F3] font-['Condor_Medium_Condensed_Italic',sans-serif] italic"
+      className="relative z-20 bg-[#F7F9FC] text-[#012169] selection:bg-[#E4002B] selection:text-white"
     >
-      {/* Subtle Architectural Grid Texture */}
-      <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(to_right,rgba(1,33,105,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(1,33,105,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-
       {/* ====================================================================
           PINNED SCROLL TRACK
-          1. Automatic on entrance: Small reel emerges, stacks and expands,
-             then separates into an aligned horizontal row
-          2. Scrolling: Purely controls horizontal navigation of the reels
+          Auto: emerge -> stack -> expand -> fan out. Scroll: horizontal travel
           ==================================================================== */}
-      <div ref={containerRef} className="relative h-[380vh]">
+      <div ref={containerRef} className="relative" style={{ height: "300vh" }}>
         <div
           ref={viewportRef}
-          className="sticky top-0 h-screen w-full flex flex-col justify-center items-center py-6 px-3 sm:px-6 lg:px-10 select-none overflow-hidden"
+          className="sticky top-0 h-screen w-full overflow-hidden select-none"
         >
-          {/* ------------------------------------------------------------------
-              SINGLE UNIFIED ANIMATION STAGE
-              ------------------------------------------------------------------ */}
-          <div className="relative w-full flex-1 flex items-center justify-center my-auto overflow-visible z-20">
-            {REEL_PROPERTIES.map((property, idx) => (
+          {/* Editorial header row (sits below the sticky modal header) */}
+          <div className="absolute inset-x-0 top-[76px] sm:top-[88px] grid grid-cols-2 sm:grid-cols-4 gap-4 px-4 sm:px-8 text-[10px] sm:text-[11px] leading-[1.35] uppercase tracking-[0.08em]">
+            <div className="font-semibold">
+              The Property
+              <br />
+              Franchise
+            </div>
+            <div className="hidden sm:block text-[#012169]/60">
+              Commercial
+              <br />
+              Reel Collection
+            </div>
+            <div className="hidden sm:block text-[#012169]/60">
+              Scroll
+              <br />
+              To Explore
+            </div>
+            <div className="flex items-start justify-end gap-3 text-right">
+              <span className="tabular-nums">
+                {String(activeIndex + 1).padStart(2, "0")}
+                <span className="text-[#012169]/40">
+                  {" "}
+                  / {String(total).padStart(2, "0")}
+                </span>
+              </span>
+              <span className="h-2 w-2 mt-[3px] rounded-full bg-[#E4002B]" />
+            </div>
+          </div>
+
+          {/* Reel cards (absolutely positioned, driven by renderScene) */}
+          {REEL_PROPERTIES.map((property, idx) => {
+            const dimmed = hoveredIndex !== null && hoveredIndex !== idx;
+            return (
               <div
                 key={property.id}
                 ref={(el) => {
                   cardRefs.current[idx] = el;
                 }}
                 onClick={() => handleOpenReel(property)}
+                onMouseEnter={() => setHoveredIndex(idx)}
+                onMouseLeave={() => setHoveredIndex(null)}
                 style={{
-                  width: `${fullCardWidth}px`,
+                  width: cardSize.w ? `${cardSize.w}px` : undefined,
+                  top: `${cardSize.top}px`,
                   zIndex: 10 + idx,
+                  opacity: 0,
                   willChange: "transform, opacity",
                   transformOrigin: "center center",
                 }}
-                className="absolute flex flex-col items-center cursor-pointer group select-none"
+                className="group absolute left-0 cursor-pointer"
               >
-                {/* Main Card Frame (Pure, Clean, High-Res Video Reel without overlays) */}
-                <div className="relative w-full aspect-[9/15] rounded-[20px] sm:rounded-[26px] overflow-hidden border-[2px] border-[#012169]/20 bg-[#0E1B33] shadow-[0_15px_45px_rgba(1,33,105,0.20)] group-hover:shadow-[0_20px_55px_rgba(161,7,40,0.32)] group-hover:border-[#A10728] transition-all duration-300">
-                  {/* Ambient Looping Video */}
-                  <div className="absolute inset-0 z-0 bg-[#0A1224] overflow-hidden">
-                    <video
-                      src={property.videoSrc}
-                      poster={property.image}
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                      className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                    />
+                {/* Caption */}
+                <div
+                  ref={(el) => {
+                    captionRefs.current[idx] = el;
+                  }}
+                  style={{ height: CAPTION_H, opacity: 0 }}
+                  className="flex items-start justify-between gap-3 text-[10px] sm:text-[11px] uppercase tracking-[0.08em] leading-none"
+                >
+                  <span className="truncate font-semibold">
+                    {property.shortTitle}
+                  </span>
+                  <span className="flex-shrink-0 text-[#012169]/50 transition-colors duration-300 group-hover:text-[#E4002B]">
+                    {property.duration}
+                  </span>
+                </div>
+
+                {/* Media frame */}
+                <div
+                  style={{ aspectRatio: MEDIA_RATIO }}
+                  className={`relative w-full overflow-hidden bg-[#0A1633] shadow-[0_18px_40px_rgba(1,33,105,0.18)] transition-opacity duration-500 ${
+                    dimmed ? "opacity-60" : "opacity-100"
+                  }`}
+                >
+                  <video
+                    ref={(el) => {
+                      videoRefs.current[idx] = el;
+                    }}
+                    src={property.videoSrc}
+                    poster={property.image}
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.04]"
+                  />
+
+                  {/* Hover affordance */}
+                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 flex items-end justify-between bg-gradient-to-t from-[#012169]/70 via-[#012169]/10 to-transparent opacity-0 translate-y-2 transition-all duration-500 group-hover:opacity-100 group-hover:translate-y-0">
+                    <span className="text-white text-[10px] sm:text-[11px] uppercase tracking-[0.1em]">
+                      {property.categoryLabel}
+                    </span>
+                    <span className="flex items-center justify-center h-9 w-9 rounded-full bg-[#E4002B] text-white">
+                      <Play className="h-3.5 w-3.5 fill-current ml-0.5" />
+                    </span>
                   </div>
                 </div>
               </div>
-            ))}
+            );
+          })}
+
+          {/* Shiny scroll hint (shown once the row forms, fades on scroll) */}
+          <div
+            ref={hintRef}
+            style={{ opacity: 0 }}
+            className="pointer-events-none absolute inset-x-0 bottom-16 sm:bottom-20 z-40 flex justify-center"
+          >
+            <div className="flex items-center gap-3 rounded-full border border-white/70 bg-white/85 px-5 py-2.5 shadow-[0_10px_30px_rgba(1,33,105,0.25)] backdrop-blur-md">
+              <span className="shiny-text text-[11px] sm:text-xs font-semibold uppercase tracking-[0.32em]">
+                Scroll to Play
+              </span>
+              <span className="relative block h-5 w-[1px] overflow-hidden bg-[#012169]/15">
+                <span className="scroll-hint-line absolute inset-x-0 top-0 h-1/2 bg-[#E4002B]" />
+              </span>
+            </div>
+          </div>
+
+          {/* Scroll progress */}
+          <div className="absolute left-4 right-4 sm:left-8 sm:right-8 bottom-5 sm:bottom-7 h-px bg-[#012169]/15">
+            <div
+              ref={progressBarRef}
+              className="h-full w-full origin-left bg-[#E4002B]"
+              style={{ transform: "scaleX(0)" }}
+            />
           </div>
         </div>
       </div>
 
       {/* ====================================================================
-          CINEMATIC FULL-SCREEN REEL VIEWER MODAL
+          REEL VIEWER
+          Full-screen player with dossier panel, prev/next and live progress
           ==================================================================== */}
-      <AnimatePresence>
-        {selectedProperty && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-[#0E1B33]/85 backdrop-blur-md"
-            onClick={handleCloseModal}
-          >
-            <motion.div
-              initial={{ scale: 0.92, y: 30 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.92, y: 30 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-[28px] border-[2px] border-[#012169]/30 bg-[#0E1B33] text-[#FAF9F6] shadow-2xl flex flex-col md:flex-row"
-            >
-              {/* Close Button */}
-              <button
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {selectedProperty && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                data-lenis-prevent
                 onClick={handleCloseModal}
-                className="absolute top-4 right-4 z-40 p-2.5 rounded-full bg-white/20 text-white hover:bg-[#A10728] transition-all cursor-pointer backdrop-blur-md shadow-md"
-                title="Close Viewer"
+                className="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-[#010B24]/90 backdrop-blur-xl text-white"
+                role="dialog"
+                aria-modal="true"
+                aria-label={selectedProperty.title}
               >
-                <X className="h-5 w-5" />
-              </button>
-
-              {/* Left Column: High-Res Vertical Video Player */}
-              <div className="relative md:w-[50%] aspect-[9/16] md:aspect-auto md:min-h-[580px] bg-black flex items-center justify-center">
-                <video
-                  ref={modalVideoRef}
-                  src={selectedProperty.videoSrc}
-                  poster={selectedProperty.image}
-                  autoPlay
-                  loop
-                  playsInline
-                  muted={isMuted}
-                  className="w-full h-full object-cover"
-                />
-
-                {/* Video Play/Pause & Sound Toggles */}
-                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-30">
-                  <button
-                    onClick={() => {
-                      if (modalVideoRef.current) {
-                        if (isPlaying) {
-                          modalVideoRef.current.pause();
-                        } else {
-                          modalVideoRef.current.play();
-                        }
-                        setIsPlaying(!isPlaying);
-                      }
-                    }}
-                    className="p-3 rounded-full bg-black/60 text-white hover:bg-[#A10728] transition-all cursor-pointer backdrop-blur-md"
-                  >
-                    {isPlaying ? (
-                      <Pause className="h-5 w-5" />
-                    ) : (
-                      <Play className="h-5 w-5 fill-current" />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setIsMuted(!isMuted)}
-                    className="p-3 rounded-full bg-black/60 text-white hover:bg-[#A10728] transition-all cursor-pointer backdrop-blur-md"
-                  >
-                    {isMuted ? (
-                      <VolumeX className="h-5 w-5" />
-                    ) : (
-                      <Volume2 className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Right Column: Property Intelligence & Dossier Information */}
-              <div className="md:w-[50%] p-6 sm:p-8 flex flex-col justify-between bg-[#0E1B33] overflow-y-auto">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="h-2 w-2 rounded-full bg-[#A10728] animate-pulse" />
-                    <span className="text-xs font-bold text-[#A10728] tracking-[0.2em] uppercase">
+                {/* Top bar */}
+                <div className="sticky top-0 z-30 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-5 text-[11px] uppercase tracking-[0.12em]">
+                  <div className="flex items-center gap-3">
+                    <span className="h-2 w-2 rounded-full bg-[#E4002B]" />
+                    <span className="tabular-nums text-white">
+                      {String(selectedIndex + 1).padStart(2, "0")}
+                      <span className="text-white/40">
+                        {" "}
+                        / {String(total).padStart(2, "0")}
+                      </span>
+                    </span>
+                    <span className="hidden sm:inline text-white/50">
                       {selectedProperty.categoryLabel}
                     </span>
                   </div>
-
-                  <h3 className="text-3xl font-black uppercase text-white leading-tight mb-2">
-                    {selectedProperty.title}
-                  </h3>
-
-                  <p className="text-sm font-medium text-white/80 leading-relaxed mb-6 border-l-2 border-[#A10728] pl-3 py-1">
-                    {selectedProperty.description}
-                  </p>
-
-                  {/* Telemetry Matrix Grid */}
-                  <div className="grid grid-cols-2 gap-3 mb-6">
-                    <div className="p-3 rounded-xl border border-white/10 bg-white/5 flex flex-col">
-                      <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
-                        Asset Valuation
-                      </span>
-                      <span className="text-lg font-bold text-[#A10728]">
-                        {selectedProperty.price}
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-xl border border-white/10 bg-white/5 flex flex-col">
-                      <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
-                        Gross Leasable Area
-                      </span>
-                      <span className="text-lg font-bold text-white">
-                        {selectedProperty.sqft}
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-xl border border-white/10 bg-white/5 flex flex-col">
-                      <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
-                        Building Floors
-                      </span>
-                      <span className="text-lg font-bold text-white">
-                        {selectedProperty.floors} Levels
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-xl border border-white/10 bg-white/5 flex flex-col">
-                      <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
-                        Tenancy Status
-                      </span>
-                      <span className="text-sm font-bold text-white truncate">
-                        {selectedProperty.tenancy}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Key Highlights */}
-                  <div className="mb-6">
-                    <span className="text-xs font-bold uppercase tracking-wider text-white/70 block mb-2">
-                      Key Highlights:
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedProperty.features.map((feat, fIdx) => (
-                        <span
-                          key={fIdx}
-                          className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-white/10 border border-white/15 text-white"
-                        >
-                          {feat}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Consultation Action */}
-                <div className="pt-4 border-t border-white/15 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs text-white/70">
-                    <MapPin className="h-3.5 w-3.5 text-[#A10728]" />
-                    <span className="truncate max-w-[180px]">
-                      {selectedProperty.location}
-                    </span>
-                  </div>
-
                   <button
-                    onClick={handleCloseModal}
-                    className="px-5 py-2.5 rounded-full bg-[#A10728] text-white text-xs font-bold uppercase tracking-wider hover:bg-[#720808] transition-all cursor-pointer shadow-md"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCloseModal();
+                    }}
+                    className="group flex items-center gap-2 rounded-full border border-white/20 pl-4 pr-2 py-1.5 text-white/80 hover:text-white hover:border-white/60 transition-colors cursor-pointer"
+                    aria-label="Close viewer"
                   >
-                    Return to Reels
+                    Close
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[#012169] transition-transform duration-300 group-hover:rotate-90">
+                      <X className="h-3.5 w-3.5" />
+                    </span>
                   </button>
                 </div>
-              </div>
-            </motion.div>
-          </motion.div>
+
+                <div className="relative min-h-[calc(100%-72px)] flex items-center justify-center px-4 sm:px-20 pb-6">
+                  {/* Prev / Next */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStep(-1);
+                    }}
+                    className="hidden md:flex absolute left-6 top-1/2 -translate-y-1/2 h-12 w-12 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white hover:text-[#012169] transition-colors cursor-pointer"
+                    aria-label="Previous reel"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStep(1);
+                    }}
+                    className="hidden md:flex absolute right-6 top-1/2 -translate-y-1/2 h-12 w-12 items-center justify-center rounded-full border border-white/20 text-white/80 hover:bg-white hover:text-[#012169] transition-colors cursor-pointer"
+                    aria-label="Next reel"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={selectedProperty.id}
+                      initial={{ opacity: 0, y: 24, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex w-full max-w-[980px] flex-col md:flex-row items-stretch gap-0 overflow-hidden bg-white text-[#012169] shadow-[0_40px_120px_rgba(0,0,0,0.45)]"
+                    >
+                      {/* Player */}
+                      <div className="relative bg-black md:w-[min(calc((100vh-120px)*0.5625),405px)] md:flex-shrink-0 aspect-[9/14] max-h-[58vh] md:max-h-none md:aspect-auto md:h-[min(calc(100vh-120px),720px)]">
+                        <video
+                          ref={modalVideoRef}
+                          src={selectedProperty.videoSrc}
+                          poster={selectedProperty.image}
+                          autoPlay
+                          loop
+                          playsInline
+                          muted={isMuted}
+                          onTimeUpdate={(e) => {
+                            const v = e.currentTarget;
+                            if (v.duration)
+                              setVideoProgress(v.currentTime / v.duration);
+                          }}
+                          onClick={() => setIsPlaying((p) => !p)}
+                          className="absolute inset-0 h-full w-full object-cover cursor-pointer"
+                        />
+
+                        {/* Centre play state */}
+                        <AnimatePresence>
+                          {!isPlaying && (
+                            <motion.button
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.8 }}
+                              onClick={() => setIsPlaying(true)}
+                              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex h-16 w-16 items-center justify-center rounded-full bg-[#E4002B] text-white shadow-xl cursor-pointer"
+                              aria-label="Play"
+                            >
+                              <Play className="h-6 w-6 fill-current ml-1" />
+                            </motion.button>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Controls */}
+                        <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/70 to-transparent">
+                          <div className="mb-3 h-[2px] w-full bg-white/25">
+                            <div
+                              className="h-full bg-[#E4002B]"
+                              style={{
+                                width: `${(videoProgress * 100).toFixed(2)}%`,
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={() => setIsPlaying((p) => !p)}
+                              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white hover:text-[#012169] transition-colors cursor-pointer"
+                              aria-label={isPlaying ? "Pause" : "Play"}
+                            >
+                              {isPlaying ? (
+                                <Pause className="h-4 w-4" />
+                              ) : (
+                                <Play className="h-4 w-4 fill-current ml-0.5" />
+                              )}
+                            </button>
+                            <span className="text-[11px] tracking-[0.12em] text-white/80 tabular-nums">
+                              {selectedProperty.duration}
+                            </span>
+                            <button
+                              onClick={() => setIsMuted((m) => !m)}
+                              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-md hover:bg-white hover:text-[#012169] transition-colors cursor-pointer"
+                              aria-label={isMuted ? "Unmute" : "Mute"}
+                            >
+                              {isMuted ? (
+                                <VolumeX className="h-4 w-4" />
+                              ) : (
+                                <Volume2 className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dossier */}
+                      <div className="flex flex-1 flex-col justify-between p-6 sm:p-10 md:max-h-[min(calc(100vh-120px),720px)] md:overflow-y-auto">
+                        <div>
+                          <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E4002B]">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[#E4002B]" />
+                            {selectedProperty.categoryLabel}
+                          </span>
+
+                          <h3 className="mt-4 text-3xl sm:text-[40px] font-bold leading-[1.05] tracking-[-0.03em] text-[#012169]">
+                            {selectedProperty.title}
+                          </h3>
+
+                          <p className="mt-3 flex items-center gap-1.5 text-sm text-[#012169]/60">
+                            <MapPin className="h-4 w-4 text-[#E4002B]" />
+                            {selectedProperty.location}
+                          </p>
+
+                          <p className="mt-6 text-[15px] leading-relaxed text-[#012169]/80">
+                            {selectedProperty.description}
+                          </p>
+
+                          {/* Specs */}
+                          <dl className="mt-8 grid grid-cols-2 border-t border-[#012169]/10">
+                            {[
+                              ["Asset Valuation", selectedProperty.price],
+                              ["Leasable Area", selectedProperty.sqft],
+                              [
+                                "Building Floors",
+                                `${selectedProperty.floors} Levels`,
+                              ],
+                              ["Tenancy", selectedProperty.tenancy],
+                            ].map(([label, value], i) => (
+                              <div
+                                key={label}
+                                className={`py-4 border-b border-[#012169]/10 ${i % 2 === 0 ? "pr-4 border-r" : "pl-4"}`}
+                              >
+                                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#012169]/50">
+                                  {label}
+                                </dt>
+                                <dd
+                                  className={`mt-1 text-lg font-semibold tracking-[-0.01em] ${
+                                    i === 0
+                                      ? "text-[#E4002B]"
+                                      : "text-[#012169]"
+                                  }`}
+                                >
+                                  {value}
+                                </dd>
+                              </div>
+                            ))}
+                          </dl>
+
+                          {/* Highlights */}
+                          <div className="mt-6 flex flex-wrap gap-2">
+                            {selectedProperty.features.map((feat) => (
+                              <span
+                                key={feat}
+                                className="rounded-full border border-[#012169]/15 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[#012169]"
+                              >
+                                {feat}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="mt-10 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2 md:hidden">
+                            <button
+                              onClick={() => handleStep(-1)}
+                              className="flex h-10 w-10 items-center justify-center rounded-full border border-[#012169]/20 cursor-pointer"
+                              aria-label="Previous reel"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleStep(1)}
+                              className="flex h-10 w-10 items-center justify-center rounded-full border border-[#012169]/20 cursor-pointer"
+                              aria-label="Next reel"
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <button
+                            onClick={handleCloseModal}
+                            className="group ml-auto inline-flex items-center rounded-full bg-[#012169] px-6 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-white hover:bg-[#E4002B] transition-colors cursor-pointer"
+                          >
+                            Back to Reels
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </section>
   );
 }

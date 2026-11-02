@@ -2,10 +2,11 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { Navigation } from "./ui/Navigation";
+import { HeroVideoScene } from "./ui/HeroVideoScene";
 import { RealEstateIntroVideo } from "./ui/RealEstateIntroVideo";
+import { BrandMark } from "./ui/BrandMark";
 import { RealEstateReelsSection } from "./ui/RealEstateReelsSection";
 import { WebsiteDetailsSection } from "./ui/WebsiteDetailsSection";
 import { ContactSection } from "./ui/ContactSection";
@@ -14,23 +15,6 @@ import { scifiAudio } from "@/lib/audio";
 import { X, Sparkles, Film, Building2, Play, Mail, Undo2 } from "lucide-react";
 import Lenis from "lenis";
 
-// Dynamically import SceneCanvas with SSR disabled for safe WebGL initialization
-const SceneCanvas = dynamic(
-  () => import("./3d/SceneCanvas").then((mod) => mod.SceneCanvas),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="fixed inset-0 z-0 flex items-center justify-center bg-[#0E1B33] text-[#FAF9F6]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#A10728] border-t-transparent" />
-          <span className="font-mono text-xs tracking-widest uppercase text-[#FAF9F6]/80">
-            Initializing Spaceship Flight & Control Bridge...
-          </span>
-        </div>
-      </div>
-    ),
-  }
-);
 
 type ActiveModal = "none" | "reels" | "details" | "contact";
 
@@ -101,16 +85,15 @@ export function LandingExperience() {
   };
 
   return (
-    <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-[#FCF8F3] text-[#012169] selection:bg-[#A10728] selection:text-[#FCF8F3]">
+    <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-[#F7F9FC] text-[#012169] selection:bg-[#E4002B] selection:text-[#F7F9FC]">
       {/* Global Navigation Bar */}
       <Navigation
         onOpenVideo={() => setIsVideoOpen(true)}
         onReset={handleCloseModal}
       />
 
-      {/* 3D Scene Background (Fixed full-screen Control Bridge view with cinematic depth-of-field) */}
-      <SceneCanvas
-        scrollProgress={1.0}
+      {/* Hero: bridge footage with clickable crew (replaces the 3D scene) */}
+      <HeroVideoScene
         onMainCharacterClick={handleMainCharacterClick}
         onReelsClick={handleReelsClick}
         onPlanetsClick={handlePlanetsClick}
@@ -128,7 +111,7 @@ export function LandingExperience() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden bg-[#012169]/50 backdrop-blur-md selection:bg-[#A10728] selection:text-[#FAF9F6]"
+            className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden bg-[#012169]/50 backdrop-blur-md selection:bg-[#E4002B] selection:text-[#FFFFFF]"
             role="dialog"
             aria-modal="true"
           >
@@ -141,11 +124,12 @@ export function LandingExperience() {
                 duration: 0.3,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="relative min-h-screen bg-[#FCF8F3] text-[#012169] shadow-2xl flex flex-col justify-between"
+              className="relative min-h-screen bg-[#F7F9FC] text-[#012169] shadow-2xl flex flex-col justify-between"
             >
               {/* Sticky Top Header Bar (Website Logo & U-turn Return Arrow) */}
               <div
-                className="sticky top-0 z-50 flex items-center justify-between border-b border-[#012169]/10 bg-[#FCF8F3]/95 px-3 sm:px-8 py-2.5 sm:py-3.5 backdrop-blur-md shadow-sm gap-2"
+                data-modal-header
+                className="sticky top-0 z-50 flex items-center justify-between border-b border-[#012169]/10 bg-[#F7F9FC]/95 px-3 sm:px-8 py-2.5 sm:py-3.5 backdrop-blur-md shadow-sm gap-2"
               >
                 {/* Active Section Identity: Clickable Website Logo (Redirects to Homepage) */}
                 <a
@@ -159,18 +143,12 @@ export function LandingExperience() {
                   title="The Property Franchise - Return to Homepage"
                   aria-label="The Property Franchise - Return to Homepage"
                 >
-                  <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full overflow-hidden border border-[#012169]/20 shadow-xs flex-shrink-0 group-hover:border-[#A10728] transition-colors">
-                    <img
-                      src="/tpf_logo.jpg"
-                      alt="The Property Franchise Emblem"
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  </div>
+                  <BrandMark className="h-9 w-9 sm:h-10 sm:w-10" />
                   <div className="flex flex-col">
-                    <span className="font-['Condor_Medium_Condensed_Italic',sans-serif] italic text-xs sm:text-sm font-black tracking-widest text-[#012169] group-hover:text-[#A10728] uppercase leading-tight transition-colors">
+                    <span className="  text-xs sm:text-sm font-black tracking-widest text-[#012169] group-hover:text-[#E4002B] uppercase leading-tight transition-colors">
                       THE PROPERTY FRANCHISE
                     </span>
-                    <span className="font-['Condor_Medium_Condensed_Italic',sans-serif] italic text-[9px] tracking-widest text-[#A10728] uppercase font-bold">
+                    <span className="  text-[9px] tracking-widest text-[#E4002B] uppercase font-bold">
                       COMMERCIAL NETWORK
                     </span>
                   </div>
@@ -179,7 +157,7 @@ export function LandingExperience() {
                 {/* Return Button with U-turn Arrow (↩) Icon */}
                 <button
                   onClick={handleCloseModal}
-                  className="flex-shrink-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full border border-[#012169]/20 bg-[#012169] text-[#FAF9F6] shadow-md transition-all hover:bg-[#A10728] hover:border-[#A10728] hover:scale-105 active:scale-95 cursor-pointer group"
+                  className="flex-shrink-0 flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full border border-[#012169]/20 bg-[#012169] text-[#FFFFFF] shadow-md transition-all hover:bg-[#E4002B] hover:border-[#E4002B] hover:scale-105 active:scale-95 cursor-pointer group"
                   title="Return to Bridge"
                   aria-label="Return to Bridge"
                 >
@@ -227,18 +205,18 @@ export function LandingExperience() {
       {/* Mobile Quick-Action Command Dock (Bridge Touch Controls) */}
       {activeModal === "none" && !isVideoOpen && (
         <div className="md:hidden fixed bottom-6 left-0 right-0 z-40 px-4 flex justify-center pointer-events-none animate-in fade-in duration-300">
-          <div className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full border border-[#012169]/20 bg-[#FCF8F3]/95 backdrop-blur-lg shadow-[0_10px_30px_rgba(1,33,105,0.15)]">
+          <div className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full border border-[#012169]/20 bg-[#F7F9FC]/95 backdrop-blur-lg shadow-[0_10px_30px_rgba(1,33,105,0.15)]">
             <button
               onClick={handleReelsClick}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full font-['Condor_Med_Cond',sans-serif] text-xs font-bold uppercase tracking-wider text-[#012169] hover:bg-[#012169] hover:text-[#FAF9F6] active:bg-[#A10728] active:text-[#FAF9F6] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider text-[#012169] hover:bg-[#012169] hover:text-[#FFFFFF] active:bg-[#E4002B] active:text-[#FFFFFF] transition-all cursor-pointer"
             >
-              <Film className="h-3.5 w-3.5 text-[#A10728]" />
+              <Film className="h-3.5 w-3.5 text-[#E4002B]" />
               <span>Reels</span>
             </button>
 
             <button
               onClick={handlePlanetsClick}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full font-['Condor_Med_Cond',sans-serif] text-xs font-bold uppercase tracking-wider text-[#012169] hover:bg-[#012169] hover:text-[#FAF9F6] active:bg-[#A10728] active:text-[#FAF9F6] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider text-[#012169] hover:bg-[#012169] hover:text-[#FFFFFF] active:bg-[#E4002B] active:text-[#FFFFFF] transition-all cursor-pointer"
             >
               <Building2 className="h-3.5 w-3.5 text-[#012169]" />
               <span>Details</span>
@@ -246,7 +224,7 @@ export function LandingExperience() {
 
             <button
               onClick={handleMainCharacterClick}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-['Condor_Med_Cond',sans-serif] text-xs font-bold uppercase tracking-wider bg-[#A10728] text-white shadow-md active:scale-95 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-[#E4002B] text-white shadow-md active:scale-95 transition-all cursor-pointer"
             >
               <Play className="h-3.5 w-3.5 fill-current text-white" />
               <span>Intro</span>
@@ -254,7 +232,7 @@ export function LandingExperience() {
 
             <button
               onClick={handleThirdCharacterClick}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full font-['Condor_Med_Cond',sans-serif] text-xs font-bold uppercase tracking-wider text-[#012169] hover:bg-[#012169] hover:text-[#FAF9F6] active:bg-[#A10728] active:text-[#FAF9F6] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider text-[#012169] hover:bg-[#012169] hover:text-[#FFFFFF] active:bg-[#E4002B] active:text-[#FFFFFF] transition-all cursor-pointer"
             >
               <Mail className="h-3.5 w-3.5 text-[#012169]" />
               <span>Contact</span>

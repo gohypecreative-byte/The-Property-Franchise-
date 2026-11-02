@@ -1,18 +1,12 @@
 // src/components/ui/RealEstateIntroVideo.tsx
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import {
-  X,
-  Play,
-  Pause,
-  RotateCcw,
-  Volume2,
-  VolumeX,
-  Maximize2,
-  Minimize2,
-} from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { gsap } from "gsap";
+import { X, Play, Pause, RotateCcw, Volume2, VolumeX } from "lucide-react";
 import { scifiAudio } from "@/lib/audio";
+import { BrandMark } from "./BrandMark";
 
 export interface RealEstateIntroVideoProps {
   isOpen: boolean;
@@ -22,6 +16,12 @@ export interface RealEstateIntroVideoProps {
   tagline?: string;
 }
 
+const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
+const clamp01 = (v: number) => Math.min(Math.max(v, 0), 1);
+const easeInOut = (t: number) =>
+  t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
 export function RealEstateIntroVideo({
   isOpen,
   onClose,
@@ -29,303 +29,511 @@ export function RealEstateIntroVideo({
   companyName = "THE PROPERTY FRANCHISE",
   tagline = "COMMERCIAL PROPERTY FRANCHISE NETWORK & GLOBAL TERRITORIES",
 }: RealEstateIntroVideoProps) {
+  const [isFilm, setIsFilm] = useState(false); // film has expanded full-bleed
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [showControls, setShowControls] = useState(true);
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
+  const fadeRef = useRef<HTMLDivElement>(null);
+  const titleOverlayRef = useRef<HTMLDivElement>(null);
+  const plusLeftRef = useRef<HTMLSpanElement>(null);
+  const plusRightRef = useRef<HTMLSpanElement>(null);
+  const topBarRef = useRef<HTMLDivElement>(null);
 
-  // Lock body scroll and trigger autoplay when opened
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-      setIsPlaying(true);
-      setCurrentTime(0);
-      scifiAudio.playHoloBeep(980, 0.1);
+  // Slit-open reveal on mount (0 -> 1), independent of scroll
+  const openProxy = useRef<{ value: number }>({ value: 0 });
 
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.currentTime = 0;
-          videoRef.current.play().catch(() => {
-            if (videoRef.current) {
-              videoRef.current.muted = true;
-              setIsMuted(true);
-              videoRef.current.play().catch(() => { });
-            }
-          });
-        }
-      }, 100);
-    } else {
-      document.body.style.overflow = "auto";
-      if (videoRef.current) {
-        videoRef.current.pause();
-      }
+  // --------------------------------------------------------------------------
+  // SCENE RENDERER
+  // openP: frame opens from a thin slit beneath the title
+  // p:     scroll progress; the frame grows from an inset panel to full-bleed
+  //        while the title page lifts away
+  // --------------------------------------------------------------------------
+  const renderScene = useCallback(() => {
+    const scroller = scrollRef.current;
+    const frame = frameRef.current;
+    const title = titleRef.current;
+    if (!scroller || !frame || !title) return 0;
+
+    const vw = scroller.clientWidth;
+    const vh = scroller.clientHeight;
+    const pad = vw < 640 ? 16 : 32;
+    const maxScroll = scroller.scrollHeight - vh;
+    const p = easeInOut(
+      maxScroll > 0 ? clamp01(scroller.scrollTop / maxScroll) : 0,
+    );
+    const openP = 1 - Math.pow(1 - openProxy.current.value, 3);
+
+    // Frame insets: start just under the title block, end at the screen edges
+    const top0 = title.offsetTop + title.offsetHeight + 20;
+    const top = top0 * (1 - p);
+    const side = pad * (1 - p);
+    const bottom = pad * (1 - p);
+
+    // Slit reveal collapses the frame to its vertical centre
+    const mid = (top + (vh - bottom)) / 2;
+    const clipTop = mid + (top - mid) * openP;
+    const clipBottom = vh - mid + (bottom - (vh - mid)) * openP;
+    frame.style.clipPath = `inset(${clipTop.toFixed(1)}px ${side.toFixed(1)}px ${clipBottom.toFixed(
+      1,
+    )}px ${side.toFixed(1)}px)`;
+
+    if (videoRef.current) {
+      videoRef.current.style.transform = `scale(${(1.12 - 0.12 * p).toFixed(4)})`;
     }
+
+    // Title page lifts and fades as the film takes over
+    title.style.transform = `translate3d(0, ${(-p * 90).toFixed(1)}px, 0)`;
+    title.style.opacity = clamp01(1 - p * 1.8).toFixed(3);
+    if (topBarRef.current) {
+      topBarRef.current.style.opacity = clamp01(1 - p * 2.2).toFixed(3);
+      topBarRef.current.style.pointerEvents = p > 0.4 ? "none" : "auto";
+    }
+
+    // White fade + overlay sit inside the visible frame
+    const frameH = vh - top - bottom;
+    if (fadeRef.current) {
+      fadeRef.current.style.top = `${top.toFixed(1)}px`;
+      fadeRef.current.style.height = `${(frameH * 0.5).toFixed(1)}px`;
+      fadeRef.current.style.opacity = (1 - p).toFixed(3);
+    }
+    if (titleOverlayRef.current) {
+      titleOverlayRef.current.style.opacity = (
+        clamp01((openP - 0.6) / 0.4) * clamp01(1 - p * 2.5)
+      ).toFixed(3);
+      titleOverlayRef.current.style.bottom = `${(bottom + 24).toFixed(1)}px`;
+      titleOverlayRef.current.style.pointerEvents = p > 0.3 ? "none" : "auto";
+    }
+    const plusY = `${(top + frameH * 0.38).toFixed(1)}px`;
+    [plusLeftRef.current, plusRightRef.current].forEach((el) => {
+      if (!el) return;
+      el.style.top = plusY;
+      el.style.opacity = (openP * clamp01(1 - p * 3)).toFixed(3);
+    });
+    if (plusLeftRef.current)
+      plusLeftRef.current.style.left = `${(side + 10).toFixed(1)}px`;
+    if (plusRightRef.current)
+      plusRightRef.current.style.right = `${(side + 10).toFixed(1)}px`;
+
+    return p;
+  }, []);
+
+  // Open: lock body scroll, start the slit reveal and the render loop
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.style.overflow = "hidden";
+    scifiAudio.playHoloBeep(980, 0.1);
+
+    openProxy.current.value = 0;
+    const tween = gsap.to(openProxy.current, {
+      value: 1,
+      duration: 1.4,
+      delay: 1.5,
+      ease: "power2.inOut",
+    });
+
+    let rafId = 0;
+    let filmShown = false;
+    const tick = () => {
+      const p = renderScene();
+      const nowFilm = p > 0.94;
+      if (nowFilm !== filmShown) {
+        filmShown = nowFilm;
+        setIsFilm(nowFilm);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
 
     return () => {
+      tween.kill();
+      cancelAnimationFrame(rafId);
       document.body.style.overflow = "auto";
     };
-  }, [isOpen]);
+  }, [isOpen, renderScene]);
 
   useEffect(() => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
     if (isPlaying) {
-      videoRef.current.play().catch(() => { });
+      video.play().catch(() => {
+        video.muted = true;
+        setIsMuted(true);
+        video.play().catch(() => {});
+      });
     } else {
-      videoRef.current.pause();
+      video.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, isOpen]);
 
   useEffect(() => {
-    if (!videoRef.current) return;
-    videoRef.current.muted = isMuted;
+    if (videoRef.current) videoRef.current.muted = isMuted;
   }, [isMuted]);
+
+  const scrollToFilm = () => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    scifiAudio.playHoloBeep(900, 0.06);
+    if (videoRef.current) videoRef.current.currentTime = 0;
+    setIsMuted(false);
+    setIsPlaying(true);
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+  };
+
+  const scrollToTitle = () => {
+    scifiAudio.playHoloBeep(720, 0.06);
+    setIsMuted(true);
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleClose = () => {
+    scifiAudio.playHoloBeep(750, 0.08);
+    // Reset so the next open starts on the title page again
+    setIsFilm(false);
+    setIsPlaying(true);
+    setIsMuted(true);
+    setCurrentTime(0);
+    onClose();
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
       if (e.key === "Escape") {
-        onClose();
-      } else if (e.key === " " || e.key === "k") {
+        handleClose();
+      } else if (isFilm && (e.key === " " || e.key === "k")) {
         e.preventDefault();
-        togglePlay();
+        setIsPlaying((p) => !p);
       } else if (e.key === "m" || e.key === "M") {
-        toggleMute();
-      } else if (e.key === "f" || e.key === "F") {
-        toggleFullscreen();
+        setIsMuted((m) => !m);
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, isPlaying, isMuted]);
-
-  const handleMouseMove = () => {
-    setShowControls(true);
-    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
-    hideControlsTimer.current = setTimeout(() => {
-      if (isPlaying) setShowControls(false);
-    }, 3000);
-  };
-
-  const togglePlay = () => {
-    scifiAudio.playHoloBeep(850, 0.05);
-    setIsPlaying((prev) => !prev);
-  };
-
-  const toggleMute = () => {
-    scifiAudio.playHoloBeep(700, 0.05);
-    setIsMuted((prev) => !prev);
-  };
-
-  const handleReplay = () => {
-    scifiAudio.playHoloBeep(900, 0.05);
-    if (videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play();
-      setIsPlaying(true);
-    }
-  };
-
-  const toggleFullscreen = () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(() => { });
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen().catch(() => { });
-      setIsFullscreen(false);
-    }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isFilm]);
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!videoRef.current || !duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const progress = Math.max(0, Math.min(1, clickX / rect.width));
-    const newTime = progress * duration;
-    videoRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
+    const progress = Math.max(
+      0,
+      Math.min(1, (e.clientX - rect.left) / rect.width),
+    );
+    videoRef.current.currentTime = progress * duration;
+    setCurrentTime(progress * duration);
   };
 
   const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return "00:00";
+    if (!seconds || isNaN(seconds)) return "00:00";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      ref={containerRef}
-      onMouseMove={handleMouseMove}
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-[#081220] text-white select-none overflow-hidden animate-in fade-in duration-300 selection:bg-[#A10728] selection:text-[#FCF8F3]"
-    >
-      <div className="relative h-screen w-screen overflow-hidden flex items-center justify-center">
-        {/* Full-bleed HTML5 Video */}
-        <video
-          ref={videoRef}
-          src={videoSrc}
-          poster="/commercial_office_tower.jpg"
-          muted={isMuted}
-          playsInline
-          autoPlay
-          loop
-          onTimeUpdate={() => {
-            if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
-          }}
-          onLoadedMetadata={() => {
-            if (videoRef.current) setDuration(videoRef.current.duration);
-          }}
-          onClick={togglePlay}
-          className="absolute inset-0 h-full w-full object-cover z-10 cursor-pointer"
-        />
-
-        {/* Ambient Dark Vignette overlay */}
-        <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-t from-[#081220]/95 via-transparent to-[#081220]/80" />
-
-        {/* Center Play Indicator */}
-        {!isPlaying && (
-          <div
-            onClick={togglePlay}
-            className="absolute inset-0 z-30 flex items-center justify-center bg-[#081220]/50 backdrop-blur-[2px] cursor-pointer"
-          >
-            <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-[#A10728]/40 bg-[#A10728] text-white shadow-2xl transition-transform hover:scale-110">
-              <Play className="h-12 w-12 ml-2 fill-current" />
-            </div>
-          </div>
-        )}
-
-        {/* Top Header Bar */}
-        <div
-          className={`absolute top-0 left-0 right-0 z-40 flex items-center justify-between p-4 sm:p-6 md:p-10 transition-opacity duration-300 bg-gradient-to-b from-[#081220]/95 via-[#081220]/60 to-transparent gap-3 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="intro"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4, ease: EASE }}
+          className="fixed inset-0 z-[120] bg-white text-[#012169] select-none selection:bg-[#E4002B] selection:text-white"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${companyName} intro film`}
         >
-          {/* Clickable Website Logo: Return to Homepage */}
-          <a
-            href="/"
-            onClick={(e) => {
-              e.preventDefault();
-              scifiAudio.playHoloBeep(650, 0.08);
-              onClose();
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className="group flex items-center cursor-pointer transition-transform duration-300 hover:scale-105 select-none"
-            title="The Property Franchise - Return to Homepage"
-            aria-label="The Property Franchise - Return to Homepage"
-          >
-            <div className="relative flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-full overflow-hidden border border-white/20 shadow-md backdrop-blur-md flex-shrink-0 transition-all duration-300 group-hover:scale-105 group-hover:border-[#A10728]">
-              <img
-                src="/tpf_logo.jpg"
-                alt="The Property Franchise"
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-            </div>
-          </a>
-
-          {/* Right Action: Close Button */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => {
-                scifiAudio.playHoloBeep(750, 0.08);
-                onClose();
-              }}
-              className="group flex items-center gap-1.5 sm:gap-2 rounded-lg border border-[#FAF9F6]/20 bg-[#012169]/90 px-3 sm:px-5 py-2 sm:py-2.5 text-xs font-mono font-bold tracking-wider uppercase text-[#FAF9F6] backdrop-blur-md transition-all duration-200 hover:border-[#A10728] hover:bg-[#A10728] shadow-lg cursor-pointer"
-              title="Close Video"
-            >
-              <span>Close</span>
-              <X className="h-3.5 w-3.5 sm:h-4 sm:w-4 transition-transform group-hover:scale-110" />
-            </button>
-          </div>
-        </div>
-
-        {/* Bottom Video Controls HUD */}
-        <div
-          className={`absolute bottom-0 left-0 right-0 z-40 p-4 sm:p-6 md:p-10 bg-gradient-to-t from-[#081220] via-[#081220]/85 to-transparent transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
-        >
-          {/* Timeline Progress Scrubber */}
+          {/* Scrollable stage: scrolling expands the film to full-bleed */}
           <div
-            onClick={handleSeek}
-            className="group relative h-2 w-full cursor-pointer rounded-full bg-white/20 transition-all hover:h-3 overflow-hidden"
+            ref={scrollRef}
+            data-lenis-prevent
+            className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain no-scrollbar"
           >
-            <div
-              className="h-full rounded-full bg-[#A10728] shadow-[0_0_10px_#A10728] transition-all duration-75"
-              style={{
-                width: duration ? `${(currentTime / duration) * 100}%` : "0%",
-              }}
-            />
+            <div className="relative h-[260vh]">
+              <div className="sticky top-0 h-screen w-full overflow-hidden">
+                {/* ==========================================================
+                    TOP BAR (logo + nav + close)
+                    ========================================================== */}
+                <div
+                  ref={topBarRef}
+                  className="absolute inset-x-0 top-0 z-40 flex items-center justify-between border-b border-[#012169]/10 bg-white/90 backdrop-blur-md px-4 sm:px-8 h-14 sm:h-16 text-[10px] sm:text-[11px] uppercase tracking-[0.12em]"
+                >
+                  <button
+                    onClick={() => {
+                      handleClose();
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="flex items-center gap-3 cursor-pointer"
+                    aria-label="The Property Franchise - Return to Homepage"
+                  >
+                    <BrandMark className="h-10 w-10 sm:h-11 sm:w-11" />
+                    <span className="hidden sm:flex flex-col items-start leading-tight">
+                      <span className="text-[12px] font-bold tracking-[0.08em] text-[#012169]">
+                        The Property Franchise
+                      </span>
+                      <span className="text-[9px] font-semibold tracking-[0.16em] text-[#E4002B]">
+                        Commercial Network
+                      </span>
+                    </span>
+                  </button>
+                  <div className="hidden md:flex items-center gap-8 text-[#012169]/60">
+                    <span className="text-[#012169]">Film</span>
+                    <span>Reels</span>
+                    <span>Territories</span>
+                  </div>
+                  <button
+                    onClick={handleClose}
+                    className="group flex items-center gap-2 rounded-full border border-[#012169]/20 pl-4 pr-1.5 py-1.5 hover:border-[#012169] transition-colors cursor-pointer"
+                    aria-label="Close intro"
+                  >
+                    Close
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#012169] text-white transition-transform duration-300 group-hover:rotate-90">
+                      <X className="h-3.5 w-3.5" />
+                    </span>
+                  </button>
+                </div>
+
+                {/* ==========================================================
+                    TITLE PAGE: rule draws -> title rises -> credits & meta
+                    ========================================================== */}
+                <div
+                  ref={titleRef}
+                  className="absolute inset-x-0 top-[84px] sm:top-[104px] z-10 px-4 sm:px-8 will-change-transform"
+                >
+                  <div className="overflow-hidden text-center">
+                    <motion.h1
+                      initial={{ y: "105%" }}
+                      animate={{ y: "0%" }}
+                      transition={{ duration: 1.1, delay: 0.7, ease: EASE }}
+                      className="whitespace-nowrap text-[clamp(26px,6.4vw,124px)] font-semibold uppercase leading-[0.95] tracking-[-0.045em] text-[#012169]"
+                    >
+                      {companyName}
+                    </motion.h1>
+                  </div>
+
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: 0.9, delay: 0.3, ease: EASE }}
+                    className="mt-3 h-px w-full origin-center bg-[#012169]"
+                  />
+
+                  <motion.p
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.7, delay: 1.3, ease: EASE }}
+                    className="mt-2 text-center text-[9px] sm:text-[10px] uppercase tracking-[0.14em] text-[#012169]/70"
+                  >
+                    Presented by{" "}
+                    <span className="font-semibold text-[#012169]">
+                      The Property Franchise
+                    </span>
+                    <span className="mx-2 text-[#E4002B]">•</span>
+                    <span className="hidden sm:inline">{tagline}</span>
+                  </motion.p>
+
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.7, delay: 1.5, ease: EASE }}
+                    className="mt-5 sm:mt-7 flex items-start justify-between text-[9px] sm:text-[10px] uppercase tracking-[0.12em] leading-[1.6]"
+                  >
+                    <dl className="grid grid-cols-[auto_auto] gap-x-4 sm:gap-x-6">
+                      <dt className="text-[#012169]/50">Year</dt>
+                      <dd>2026</dd>
+                      <dt className="text-[#012169]/50">Format</dt>
+                      <dd>Brand Film</dd>
+                      <dt className="text-[#012169]/50">Region</dt>
+                      <dd>Australia</dd>
+                    </dl>
+                    <dl className="grid grid-cols-[auto_auto] gap-x-4 sm:gap-x-6 text-right">
+                      <dt className="text-[#012169]/50">Sector</dt>
+                      <dd>Commercial</dd>
+                      <dt className="text-[#012169]/50">Language</dt>
+                      <dd>English</dd>
+                      <dt className="text-[#012169]/50">Runtime</dt>
+                      <dd className="tabular-nums">{formatTime(duration)}</dd>
+                    </dl>
+                  </motion.div>
+                </div>
+
+                {/* ==========================================================
+                    FILM FRAME (full-screen layer, clipped by renderScene)
+                    ========================================================== */}
+                <div
+                  ref={frameRef}
+                  className="absolute inset-0 z-20 overflow-hidden bg-[#0A1633]"
+                  style={{ clipPath: "inset(50% 32px 50% 32px)" }}
+                >
+                  <video
+                    ref={videoRef}
+                    src={videoSrc}
+                    poster="/commercial_office_tower.jpg"
+                    muted={isMuted}
+                    playsInline
+                    autoPlay
+                    loop
+                    onTimeUpdate={(e) =>
+                      setCurrentTime(e.currentTarget.currentTime)
+                    }
+                    onLoadedMetadata={(e) =>
+                      setDuration(e.currentTarget.duration)
+                    }
+                    onClick={() =>
+                      isFilm ? setIsPlaying((p) => !p) : scrollToFilm()
+                    }
+                    className="absolute inset-0 h-full w-full object-cover cursor-pointer will-change-transform"
+                  />
+
+                  {/* White fade from the title page into the footage */}
+                  <div
+                    ref={fadeRef}
+                    className="pointer-events-none absolute inset-x-0 bg-gradient-to-b from-white via-white/60 to-transparent"
+                  />
+
+                  <span
+                    ref={plusLeftRef}
+                    className="absolute text-lg leading-none text-[#012169]"
+                    style={{ opacity: 0 }}
+                  >
+                    +
+                  </span>
+                  <span
+                    ref={plusRightRef}
+                    className="absolute text-lg leading-none text-[#012169]"
+                    style={{ opacity: 0 }}
+                  >
+                    +
+                  </span>
+
+                  {/* Title-page actions + scroll cue */}
+                  <div
+                    ref={titleOverlayRef}
+                    style={{ opacity: 0 }}
+                    className="absolute inset-x-0 flex flex-col items-center gap-4"
+                  >
+                    <div className="flex items-stretch border border-white/80 bg-white/10 backdrop-blur-md text-white text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.16em]">
+                      <button
+                        onClick={scrollToFilm}
+                        className="flex items-center gap-2 px-5 sm:px-7 py-3 hover:bg-white hover:text-[#012169] transition-colors cursor-pointer"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-current" />
+                        Watch the Film
+                      </button>
+                      <span className="w-px bg-white/80" />
+                      <button
+                        onClick={handleClose}
+                        className="px-5 sm:px-7 py-3 hover:bg-[#E4002B] transition-colors cursor-pointer"
+                      >
+                        Explore Network
+                      </button>
+                    </div>
+                    <span className="shiny-text-light text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.32em]">
+                      Scroll to Play
+                    </span>
+                  </div>
+
+                  {/* Film controls (shown once fully expanded) */}
+                  <AnimatePresence>
+                    {isFilm && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 12 }}
+                        transition={{ duration: 0.45, ease: EASE }}
+                        className="pointer-events-none absolute inset-0 flex flex-col justify-between text-white"
+                      >
+                        <div className="pointer-events-auto flex items-center justify-between p-4 sm:p-8 bg-gradient-to-b from-black/60 to-transparent text-[10px] sm:text-[11px] uppercase tracking-[0.14em]">
+                          <span className="flex items-center gap-3">
+                            <BrandMark className="h-9 w-9" />
+                            {companyName}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={scrollToTitle}
+                              className="rounded-full border border-white/30 px-4 py-1.5 hover:border-white transition-colors cursor-pointer"
+                            >
+                              Back to Top
+                            </button>
+                            <button
+                              onClick={handleClose}
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#012169] hover:bg-[#E4002B] hover:text-white transition-colors cursor-pointer"
+                              aria-label="Close intro"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="pointer-events-auto p-4 sm:p-8 bg-gradient-to-t from-black/70 to-transparent">
+                          <div
+                            onClick={handleSeek}
+                            className="relative h-[3px] w-full cursor-pointer bg-white/25 hover:h-[5px] transition-all"
+                          >
+                            <div
+                              className="h-full bg-[#E4002B]"
+                              style={{
+                                width: duration
+                                  ? `${(currentTime / duration) * 100}%`
+                                  : "0%",
+                              }}
+                            />
+                          </div>
+                          <div className="mt-4 flex items-center gap-3 text-[11px] tracking-[0.12em]">
+                            <button
+                              onClick={() => setIsPlaying((p) => !p)}
+                              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#012169] hover:bg-[#E4002B] hover:text-white transition-colors cursor-pointer"
+                              aria-label={isPlaying ? "Pause" : "Play"}
+                            >
+                              {isPlaying ? (
+                                <Pause className="h-4 w-4" />
+                              ) : (
+                                <Play className="h-4 w-4 ml-0.5 fill-current" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (videoRef.current)
+                                  videoRef.current.currentTime = 0;
+                                setIsPlaying(true);
+                              }}
+                              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 hover:border-white transition-colors cursor-pointer"
+                              aria-label="Restart"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => setIsMuted((m) => !m)}
+                              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 hover:border-white transition-colors cursor-pointer"
+                              aria-label={isMuted ? "Unmute" : "Mute"}
+                            >
+                              {isMuted ? (
+                                <VolumeX className="h-4 w-4" />
+                              ) : (
+                                <Volume2 className="h-4 w-4" />
+                              )}
+                            </button>
+                            <span className="ml-auto tabular-nums text-white/80">
+                              {formatTime(currentTime)} / {formatTime(duration)}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </div>
           </div>
-
-          {/* Controls Bar Row */}
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-            {/* Left Controls */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={togglePlay}
-                className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#FAF9F6]/20 bg-[#012169] text-white backdrop-blur-md transition-all hover:scale-105 hover:bg-[#A10728] cursor-pointer"
-                title={isPlaying ? "Pause (Space)" : "Play (Space)"}
-              >
-                {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5 fill-current" />}
-              </button>
-
-              <button
-                onClick={handleReplay}
-                className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#FAF9F6]/20 bg-[#012169]/70 text-white backdrop-blur-md transition-all hover:scale-105 hover:bg-[#A10728] cursor-pointer"
-                title="Restart Video"
-              >
-                <RotateCcw className="h-4 w-4" />
-              </button>
-
-              <button
-                onClick={toggleMute}
-                className="flex items-center gap-2 rounded-lg border border-[#FAF9F6]/20 bg-[#012169]/70 px-4 py-2.5 text-xs font-mono backdrop-blur-md transition-all text-white hover:bg-[#A10728] cursor-pointer"
-                title="Mute / Unmute (M)"
-              >
-                {isMuted ? (
-                  <>
-                    <VolumeX className="h-4 w-4 text-[#A10728]" />
-                    <span className="hidden sm:inline">MUTED</span>
-                  </>
-                ) : (
-                  <>
-                    <Volume2 className="h-4 w-4 text-white" />
-                    <span className="hidden sm:inline">AUDIO ON</span>
-                  </>
-                )}
-              </button>
-
-              <span className="font-mono text-xs text-[#FAF9F6]/80 ml-2">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </span>
-            </div>
-
-            {/* Center Status Tag */}
-            <div className="hidden lg:flex items-center gap-2 text-xs font-mono text-[#FAF9F6]/80 bg-[#012169] px-4 py-2 rounded-full border border-[#FAF9F6]/20 backdrop-blur-md">
-              <span className="h-2 w-2 rounded-full bg-[#A10728] animate-pulse" />
-              <span>THE PROPERTY FRANCHISE // COMMERCIAL ARCHITECTURAL CINEMATICS</span>
-            </div>
-
-            {/* Right Controls: Fullscreen Toggle */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={toggleFullscreen}
-                className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#38BDF8]/30 bg-[#0B254A]/70 text-white backdrop-blur-md transition-all hover:scale-105 hover:bg-[#0D7CD6] cursor-pointer"
-                title={isFullscreen ? "Exit Fullscreen (F)" : "Fullscreen (F)"}
-              >
-                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

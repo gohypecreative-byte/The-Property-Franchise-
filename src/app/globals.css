@@ -1,153 +1,50 @@
 @import "tailwindcss";
 
 /* ========================================================
-   Condor Medium Condensed Italic (Sole Universal Typography)
-   Directly matching: Condor Medium Condensed Italic
+   Universal Typography: Inter (loaded via next/font in layout.tsx)
    ======================================================== */
-@font-face {
-  font-family: 'Condor Medium Condensed Italic';
-  src: local('Condor Medium Condensed Italic'),
-       local('CondorMediumCondensedItalic'),
-       local('Condor Med Cond Italic'),
-       local('CondorMedCond-Italic'),
-       local('Condor-MediumCondensedItalic'),
-       local('Condor-Italic'),
-       local('Condor Medium Condensed'),
-       local('Condor Med Cond'),
-       local('Condor'),
-       url('/fonts/CondorMedCond-Italic.woff2') format('woff2'),
-       url('/fonts/CondorMedCond.woff2') format('woff2'),
-       url('/fonts/CondorMedCond.otf') format('opentype'),
-       url('/fonts/CondorMedCond.ttf') format('truetype');
-  font-weight: 100 900;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Condor Medium Condensed Italic';
-  src: local('Condor Medium Condensed Italic'),
-       local('CondorMediumCondensedItalic'),
-       local('Condor Med Cond Italic'),
-       local('CondorMedCond-Italic'),
-       local('Condor-MediumCondensedItalic'),
-       local('Condor-Italic'),
-       local('Condor Medium Condensed'),
-       local('Condor Med Cond'),
-       local('Condor'),
-       url('/fonts/CondorMedCond-Italic.woff2') format('woff2'),
-       url('/fonts/CondorMedCond.woff2') format('woff2');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Condor Med Cond';
-  src: local('Condor Medium Condensed Italic'),
-       local('CondorMediumCondensedItalic'),
-       local('Condor Med Cond Italic'),
-       local('CondorMedCond-Italic'),
-       local('Condor-MediumCondensedItalic'),
-       local('Condor-Italic'),
-       local('Condor Medium Condensed'),
-       local('Condor Med Cond'),
-       local('Condor');
-  font-weight: 100 900;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Condor Med Cond';
-  src: local('Condor Medium Condensed Italic'),
-       local('CondorMediumCondensedItalic'),
-       local('Condor Med Cond Italic'),
-       local('CondorMedCond-Italic'),
-       local('Condor-MediumCondensedItalic'),
-       local('Condor-Italic'),
-       local('Condor Medium Condensed'),
-       local('Condor Med Cond'),
-       local('Condor');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Condor';
-  src: local('Condor Medium Condensed Italic'),
-       local('CondorMediumCondensedItalic'),
-       local('Condor Med Cond Italic'),
-       local('CondorMedCond-Italic'),
-       local('Condor-MediumCondensedItalic'),
-       local('Condor-Italic'),
-       local('Condor Medium Condensed'),
-       local('Condor Med Cond'),
-       local('Condor');
-  font-weight: 100 900;
-  font-style: italic;
-  font-display: swap;
-}
-
 :root {
-  --font-condor: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
-  --font-sans: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
-  --font-serif: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
-  --font-mono: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", monospace;
+  --font-site: var(--font-inter), "Helvetica Neue", Helvetica, Arial, sans-serif;
 
-  /* Softlife & Australian Heritage Palette: Warm Cream, Australian Flag Blue & Crimson Red */
-  --off-white: #FCF8F3;
+  /* Australian Flag Palette: Flag Blue (#012169), Flag Red (#E4002B) & Clean White */
+  --off-white: #F7F9FC;
   --off-white-card: #FFFFFF;
-  --off-white-muted: #F6E6E5;
+  --off-white-muted: #FDECEF;
   --aus-blue: #012169;
   --aus-blue-light: #002B7F;
   --aus-blue-royal: #0B3B95;
-  --deep-navy: #0E1B33;
+  --deep-navy: #0A1633;
   --deep-navy-card: #14243E;
   --deep-navy-light: #1E3456;
-  --accent-red: #A10728;
-  --accent-red-hover: #720808;
-  --background: #FCF8F3;
+  --accent-red: #E4002B;
+  --accent-red-hover: #B8001F;
+  --background: #F7F9FC;
   --foreground: #012169;
 }
 
 @theme inline {
-  --font-condor: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
-  --font-sans: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
-  --font-serif: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
-  --font-mono: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", monospace;
+  --font-sans: var(--font-site);
+  --font-serif: var(--font-site);
+  --font-mono: var(--font-site);
 
-  --color-off-white: #FCF8F3;
+  --color-off-white: #F7F9FC;
   --color-off-white-card: #FFFFFF;
-  --color-off-white-muted: #F6E6E5;
+  --color-off-white-muted: #FDECEF;
   --color-aus-blue: #012169;
   --color-aus-blue-light: #002B7F;
-  --color-deep-navy: #0E1B33;
+  --color-deep-navy: #0A1633;
   --color-deep-navy-card: #14243E;
   --color-deep-navy-light: #1E3456;
-  --color-accent-red: #A10728;
-  --color-accent-red-hover: #720808;
+  --color-accent-red: #E4002B;
+  --color-accent-red-hover: #B8001F;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 }
 
-/* ========================================================
-   Universal Typography: Exclusively Apply Condor Medium Condensed Italic Globally
-   ======================================================== */
 *,
 *::before,
 *::after {
-  font-family: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif !important;
-}
-
-html,
-body,
-h1, h2, h3, h4, h5, h6,
-p, span, div, a, button, input, textarea, select, label,
-nav, footer, header, section, main, article, aside,
-.font-sans, .font-serif, .font-mono, .font-condor {
-  font-family: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif !important;
+  font-family: var(--font-site);
 }
 
 html,
@@ -164,85 +61,128 @@ html {
 }
 
 body {
-  background: #FCF8F3;
+  background: #F7F9FC;
   color: #012169;
   user-select: none;
-  font-feature-settings: "kern" 1, "liga" 1;
+  font-feature-settings: "kern" 1, "liga" 1, "cv11" 1, "ss01" 1;
 }
 
 /* ========================================================
-   Typographic Hierarchy & Balancing for Condor Medium Condensed Italic
+   Typographic Hierarchy
    ======================================================== */
 h1 {
-  font-weight: 800;
-  letter-spacing: -0.015em;
-  line-height: 1.08;
-  font-style: italic;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
 }
 
 h2 {
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  line-height: 1.12;
-  font-style: italic;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
 }
 
 h3 {
-  font-weight: 700;
-  letter-spacing: -0.005em;
+  font-weight: 600;
+  letter-spacing: -0.015em;
   line-height: 1.18;
-  font-style: italic;
 }
 
 h4 {
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-weight: 600;
+  letter-spacing: -0.005em;
   line-height: 1.25;
-  font-style: italic;
 }
 
 h5, h6 {
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   line-height: 1.3;
-  font-style: italic;
 }
 
 p {
-  letter-spacing: 0.015em;
-  line-height: 1.62;
+  letter-spacing: 0;
+  line-height: 1.6;
 }
 
 button {
-  letter-spacing: 0.08em;
-}
-
-nav, footer {
   letter-spacing: 0.04em;
 }
 
-.font-condor {
-  font-family: var(--font-condor);
-  letter-spacing: -0.015em;
-  font-style: italic;
+nav, footer {
+  letter-spacing: 0.02em;
 }
 
-.condor-heading {
-  font-family: var(--font-condor);
-  font-style: italic;
-  text-transform: uppercase;
-  letter-spacing: -0.015em;
+/* ========================================================
+   Shiny text: a light sweep travelling across flag-blue type
+   ======================================================== */
+.shiny-text {
+  color: transparent;
+  background-image: linear-gradient(
+    110deg,
+    #012169 0%,
+    #012169 38%,
+    #E4002B 46%,
+    #FFFFFF 50%,
+    #E4002B 54%,
+    #012169 62%,
+    #012169 100%
+  );
+  background-size: 250% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: shiny-sweep 2.6s linear infinite;
+}
+
+/* Variant for type sitting on footage */
+.shiny-text-light {
+  color: transparent;
+  background-image: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.55) 40%,
+    #FFFFFF 48%,
+    #E4002B 52%,
+    rgba(255, 255, 255, 0.55) 60%,
+    rgba(255, 255, 255, 0.55) 100%
+  );
+  background-size: 250% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: shiny-sweep 2.6s linear infinite;
+}
+
+@keyframes shiny-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
+.scroll-hint-line {
+  animation: scroll-hint-drop 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes scroll-hint-drop {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(200%);
+  }
 }
 
 ::selection {
-  background-color: #A10728;
-  color: #FCF8F3;
+  background-color: #E4002B;
+  color: #F7F9FC;
 }
 
 /* Vintage Subtle Paper Texture Overlay */
 .vintage-paper-bg {
-  background-color: #FCF8F3;
-  background-image: radial-gradient(#0E1B33 0.35px, transparent 0.35px), radial-gradient(#A10728 0.35px, #FCF8F3 0.35px);
+  background-color: #F7F9FC;
+  background-image: radial-gradient(#0A1633 0.35px, transparent 0.35px), radial-gradient(#E4002B 0.35px, #F7F9FC 0.35px);
   background-size: 24px 24px;
   background-position: 0 0, 12px 12px;
 }
@@ -299,11 +239,11 @@ nav, footer {
 @keyframes celestial-pulse {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 0 26px rgba(166, 61, 53, 0.45);
+    box-shadow: 0 0 26px rgba(228,0,43, 0.45);
   }
   50% {
     transform: scale(1.04);
-    box-shadow: 0 0 42px rgba(166, 61, 53, 0.75);
+    box-shadow: 0 0 42px rgba(228,0,43, 0.75);
   }
 }
 

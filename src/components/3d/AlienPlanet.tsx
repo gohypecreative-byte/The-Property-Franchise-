@@ -17,8 +17,8 @@ export function AlienPlanet() {
 
     // Vintage palette: Cream, Vintage Red, Muted Blue
     const colors = [
-      { color: "#A63D35", emissive: "#8F332C" },
-      { color: "#F3E8D2", emissive: "#D9C8AD" },
+      { color: "#E4002B", emissive: "#B8001F" },
+      { color: "#EAF0F8", emissive: "#C9D4E5" },
       { color: "#354F70", emissive: "#1A2838" },
     ];
 
@@ -69,7 +69,7 @@ export function AlienPlanet() {
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[6.0, 6.25, 64]} />
           <meshBasicMaterial
-            color="#A63D35"
+            color="#E4002B"
             side={THREE.DoubleSide}
             transparent
             opacity={0.7}
@@ -80,7 +80,7 @@ export function AlienPlanet() {
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[4.2, 4.35, 48]} />
           <meshBasicMaterial
-            color="#F3E8D2"
+            color="#EAF0F8"
             side={THREE.DoubleSide}
             transparent
             opacity={0.65}
@@ -91,7 +91,7 @@ export function AlienPlanet() {
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[1.5, 1.68, 32]} />
           <meshBasicMaterial
-            color="#A63D35"
+            color="#E4002B"
             side={THREE.DoubleSide}
             transparent
             opacity={0.8}
@@ -115,7 +115,7 @@ export function AlienPlanet() {
               {/* Beacon Light Bulb in Cream */}
               <mesh position={[0, 0.55, 0]}>
                 <sphereGeometry args={[0.09, 16, 16]} />
-                <meshBasicMaterial color="#F3E8D2" />
+                <meshBasicMaterial color="#EAF0F8" />
               </mesh>
             </group>
           );

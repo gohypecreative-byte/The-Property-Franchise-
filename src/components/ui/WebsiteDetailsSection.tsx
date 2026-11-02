@@ -2,19 +2,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import {
-  ArrowRight,
-  MapPin,
-  X,
-} from "lucide-react";
+import { ArrowRight, MapPin, X } from "lucide-react";
 import { scifiAudio } from "@/lib/audio";
-
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(ScrollTrigger);
-}
 
 // ============================================================================
 // Commercial Property Portfolio Data (6 Featured Institutional Assets)
@@ -219,535 +211,529 @@ interface WebsiteDetailsSectionProps {
   onClose?: () => void;
 }
 
+interface StageLayout {
+  vw: number;
+  vh: number;
+  isMobile: boolean;
+  colW: number; // width of one strip column
+  panelW: number; // final width of the light editorial canvas
+  panelH: number; // final height of the light canvas (mobile stacks vertically)
+  stackLeft: number;
+  stackTop: number;
+}
+
+const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
+const clamp01 = (v: number) => Math.min(Math.max(v, 0), 1);
+const smoothstep = (t: number) => t * t * (3 - 2 * t);
+
+// Vertical scroll distance per property swap (fraction of the stage height)
+const SCROLL_PER_ITEM = 0.75;
+
 export function WebsiteDetailsSection({
   scrollContainerRef,
-  onClose,
 }: WebsiteDetailsSectionProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
-  // Full-screen 3-image entrance banner container
-  const bannerContainerRef = useRef<HTMLDivElement>(null);
-  const bannerCol1Ref = useRef<HTMLDivElement>(null);
-  const bannerCol2Ref = useRef<HTMLDivElement>(null);
-  const bannerCol3Ref = useRef<HTMLDivElement>(null);
+  // Intro choreography
+  const stripRef = useRef<HTMLDivElement>(null);
+  const stripColRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelInnerRef = useRef<HTMLDivElement>(null);
+  const titleLineRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const metaRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // Split layout elements
-  const leftPanelRef = useRef<HTMLDivElement>(null);
-  const verticalCardRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const rightColumnContainerRef = useRef<HTMLDivElement>(null);
+  // Scroll-driven image stack (right column)
+  const stackRef = useRef<HTMLDivElement>(null);
+  const stackItemRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const stackImgRefs = useRef<(HTMLImageElement | null)[]>([]);
+  const progressRef = useRef<HTMLDivElement>(null);
 
-  // Progress and state
-  const progressProxy = useRef<{ value: number }>({ value: 0 });
-  const [activePropertyIndex, setActivePropertyIndex] = useState<number>(0);
-  const [selectedDossier, setSelectedDossier] = useState<PropertyDossier | null>(null);
+  const layoutRef = useRef<StageLayout | null>(null);
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  const introDoneRef = useRef(false);
+  const targetFloatRef = useRef(0);
+  const currentFloatRef = useRef(0);
 
-  // Automatic entrance animation tracking (triggers automatically on section entry without scrolling)
-  const autoEntranceProxy = useRef<{ value: number }>({ value: 0 });
-  const autoEntranceDone = useRef<boolean>(false);
-  const hasUserScrolled = useRef<boolean>(false);
+  const [stage, setStage] = useState({
+    top: 0,
+    height: 0,
+    isMobile: false,
+    panelW: 0,
+    panelH: 0,
+  });
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [selectedDossier, setSelectedDossier] =
+    useState<PropertyDossier | null>(null);
+
+  const total = FEATURED_PROPERTIES.length;
 
   // --------------------------------------------------------------------------
-  // UNIFIED STICKY SCROLL ANIMATION CORE
-  // 1. Entrance: 3 images animate UPWARD from the bottom automatically without requiring scrolling.
-  // 2. (p = 0.00 -> 0.16): 3 images hold in place filling 100% of the screen width.
-  // 3. (p = 0.16 -> 0.36): 3 images slide rightward into right column; Left panel reveals.
-  // 4. (p = 0.36 -> 0.90): Right column vertically scrubs through the 6 properties.
-  // 5. (p = 0.90 -> 1.00): Animation finishes cleanly.
-  // Past p = 1.00: Section naturally unpins and scrolls forward into the next section (Footer).
+  // LAYOUT
+  // Stage sits below the modal's sticky header. Desktop: light canvas takes
+  // the left two thirds, images the right third. Mobile: canvas on top,
+  // images below.
   // --------------------------------------------------------------------------
-  const renderUnifiedAnimation = useCallback((p: number) => {
-    const numCards = FEATURED_PROPERTIES.length;
+  const measure = useCallback(() => {
+    const container = scrollContainerRef?.current;
+    const header = container?.querySelector<HTMLElement>("[data-modal-header]");
+    const headerH = header ? header.offsetHeight : 0;
+    const vw = container ? container.clientWidth : window.innerWidth;
+    const vh =
+      (container ? container.clientHeight : window.innerHeight) - headerH;
+    const isMobile = vw < 768;
 
-    if (p <= 0.16) {
-      // PHASE 1: 3 FULL-WIDTH IMAGES IN PLACE (Entered automatically on section visit)
-      if (bannerContainerRef.current) {
-        if (autoEntranceDone.current || hasUserScrolled.current) {
-          bannerContainerRef.current.style.opacity = "1";
-          bannerContainerRef.current.style.transform = "translate3d(0, 0, 0)";
-          bannerContainerRef.current.style.pointerEvents = "auto";
-        }
-      }
+    const colW = isMobile ? vw / 2 : vw / 3;
+    const panelW = isMobile ? vw : Math.round(vw * (vw < 1100 ? 0.58 : 2 / 3));
+    const panelH = isMobile ? Math.round(vh * 0.56) : vh;
 
-      if (leftPanelRef.current) {
-        leftPanelRef.current.style.opacity = "0";
-        leftPanelRef.current.style.transform = "translate3d(-60px, 0, 0)";
-        leftPanelRef.current.style.pointerEvents = "none";
-      }
+    layoutRef.current = {
+      vw,
+      vh,
+      isMobile,
+      colW,
+      panelW,
+      panelH,
+      stackLeft: isMobile ? 0 : panelW,
+      stackTop: isMobile ? panelH : 0,
+    };
 
-      if (rightColumnContainerRef.current) {
-        rightColumnContainerRef.current.style.opacity = "0";
-        rightColumnContainerRef.current.style.pointerEvents = "none";
-      }
-
-      setActivePropertyIndex(0);
-      for (let idx = 0; idx < numCards; idx++) {
-        const cardEl = verticalCardRefs.current[idx];
-        if (!cardEl) continue;
-        if (idx === 0) {
-          cardEl.style.transform = "translate3d(0, 0, 0)";
-          cardEl.style.opacity = "1";
-          cardEl.style.pointerEvents = "auto";
-        } else {
-          cardEl.style.transform = "translate3d(0, 102%, 0)";
-          cardEl.style.opacity = "0";
-          cardEl.style.pointerEvents = "none";
-        }
-      }
-    } else if (p <= 0.36) {
-      // PHASE 2: SMOOTH SHIFT RIGHTWARD AND REVEAL LEFT EDITORIAL PANEL
-      const tShift = (p - 0.16) / 0.20;
-      const easeShift = tShift * tShift * (3 - 2 * tShift);
-
-      if (bannerContainerRef.current) {
-        bannerContainerRef.current.style.opacity = (1 - easeShift * 0.95).toFixed(3);
-        bannerContainerRef.current.style.transform = `translate3d(${(easeShift * 48).toFixed(2)}vw, 0, 0)`;
-        bannerContainerRef.current.style.pointerEvents = easeShift > 0.8 ? "none" : "auto";
-      }
-
-      if (leftPanelRef.current) {
-        leftPanelRef.current.style.opacity = easeShift.toFixed(3);
-        leftPanelRef.current.style.transform = `translate3d(${((-1 + easeShift) * 60).toFixed(2)}px, 0, 0)`;
-        leftPanelRef.current.style.pointerEvents = easeShift > 0.5 ? "auto" : "none";
-      }
-
-      if (rightColumnContainerRef.current) {
-        rightColumnContainerRef.current.style.opacity = easeShift.toFixed(3);
-        rightColumnContainerRef.current.style.pointerEvents = easeShift > 0.5 ? "auto" : "none";
-      }
-
-      setActivePropertyIndex(0);
-      for (let idx = 0; idx < numCards; idx++) {
-        const cardEl = verticalCardRefs.current[idx];
-        if (!cardEl) continue;
-        if (idx === 0) {
-          cardEl.style.transform = "translate3d(0, 0, 0)";
-          cardEl.style.opacity = "1";
-          cardEl.style.pointerEvents = "auto";
-        } else {
-          cardEl.style.transform = "translate3d(0, 102%, 0)";
-          cardEl.style.opacity = "0";
-          cardEl.style.pointerEvents = "none";
-        }
-      }
-    } else {
-      // PHASE 3: RIGHT-SIDE VERTICAL SCRUB & LIVE DATA MATRIX (p: 0.36 -> 1.00)
-      if (bannerContainerRef.current) {
-        bannerContainerRef.current.style.opacity = "0";
-        bannerContainerRef.current.style.pointerEvents = "none";
-      }
-
-      if (leftPanelRef.current) {
-        leftPanelRef.current.style.opacity = "1";
-        leftPanelRef.current.style.transform = "translate3d(0, 0, 0)";
-        leftPanelRef.current.style.pointerEvents = "auto";
-      }
-
-      if (rightColumnContainerRef.current) {
-        rightColumnContainerRef.current.style.opacity = "1";
-        rightColumnContainerRef.current.style.pointerEvents = "auto";
-      }
-
-      // Normalized scrub progress across the 6 vertical cards
-      const scrubT = Math.min(1.0, Math.max(0, (p - 0.36) / (0.90 - 0.36)));
-      const floatIndex = scrubT * (numCards - 1);
-      const currentIdx = Math.min(
-        numCards - 1,
-        Math.max(0, Math.round(floatIndex))
-      );
-      setActivePropertyIndex(currentIdx);
-
-      // Seamless stacked image transition: each new image smoothly transitions directly over the previous one
-      for (let idx = 0; idx < numCards; idx++) {
-        const cardEl = verticalCardRefs.current[idx];
-        if (!cardEl) continue;
-
-        if (idx === 0) {
-          // Base card stays in place
-          cardEl.style.transform = "translate3d(0, 0, 0)";
-          cardEl.style.opacity = "1";
-          cardEl.style.pointerEvents = "auto";
-        } else {
-          if (floatIndex < idx - 1) {
-            // Waiting below
-            cardEl.style.transform = "translate3d(0, 102%, 0)";
-            cardEl.style.opacity = "0";
-            cardEl.style.pointerEvents = "none";
-          } else if (floatIndex <= idx) {
-            // Actively sliding up from bottom directly OVER previous card
-            const t = floatIndex - (idx - 1);
-            const easeT = t * t * (3 - 2 * t);
-            const translateY = (1 - easeT) * 100;
-            cardEl.style.transform = `translate3d(0, ${translateY.toFixed(2)}%, 0)`;
-            cardEl.style.opacity = "1";
-            cardEl.style.pointerEvents = "auto";
-          } else {
-            // Fully in place
-            cardEl.style.transform = "translate3d(0, 0, 0)";
-            cardEl.style.opacity = "1";
-            cardEl.style.pointerEvents = "auto";
-          }
-        }
-      }
+    if (trackRef.current) {
+      trackRef.current.style.height = `${vh + (total - 1) * vh * SCROLL_PER_ITEM + headerH}px`;
     }
-  }, []);
+    setStage((prev) =>
+      prev.top === headerH &&
+      prev.height === vh &&
+      prev.isMobile === isMobile &&
+      prev.panelW === panelW &&
+      prev.panelH === panelH
+        ? prev
+        : { top: headerH, height: vh, isMobile, panelW, panelH },
+    );
+  }, [scrollContainerRef, total]);
+
+  useEffect(() => {
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure]);
 
   // --------------------------------------------------------------------------
-  // AUTOMATIC UPWARD ENTRANCE ANIMATION (TRIGGERED UPON ENTERING SECTION)
+  // AUTOMATIC INTRO (plays on open, no scrolling needed)
+  // 1. Strip columns rise from the bottom, staggered, on navy
+  // 2. Light canvas sweeps in from the left, pushing the strip right
+  // 3. Title lines rise in, then meta, list and details fade up
   // --------------------------------------------------------------------------
   useEffect(() => {
+    const L = layoutRef.current;
+    if (!L || !stage.height) return;
+    if (timelineRef.current) return; // build once; resizes snap to the end state
+
     scifiAudio.playHoloBeep(850, 0.08);
+    const cols = stripColRefs.current.filter(Boolean);
+    const lines = titleLineRefs.current.filter(Boolean);
+    const metas = metaRefs.current.filter(Boolean);
 
-    const autoTween = gsap.fromTo(
-      autoEntranceProxy.current,
-      { value: 0 },
-      {
-        value: 1,
-        duration: 1.15,
-        ease: "power3.out",
-        delay: 0.05,
-        onUpdate: () => {
-          if (!hasUserScrolled.current && bannerContainerRef.current) {
-            const t = autoEntranceProxy.current.value;
-            const translateY = (1 - t) * 100;
-            bannerContainerRef.current.style.transform = `translate3d(0, ${translateY.toFixed(2)}%, 0)`;
-            bannerContainerRef.current.style.opacity = Math.min(1.0, t * 1.8).toFixed(3);
-            bannerContainerRef.current.style.pointerEvents = t > 0.4 ? "auto" : "none";
-          }
-        },
-        onComplete: () => {
-          autoEntranceDone.current = true;
-          if (!hasUserScrolled.current && bannerContainerRef.current) {
-            bannerContainerRef.current.style.transform = "translate3d(0, 0, 0)";
-            bannerContainerRef.current.style.opacity = "1";
-            bannerContainerRef.current.style.pointerEvents = "auto";
-          }
-        },
-      }
-    );
+    const tl = gsap.timeline({
+      delay: 0.15,
+      onComplete: () => {
+        introDoneRef.current = true;
+      },
+    });
 
+    // Start states applied immediately so nothing flashes before the timeline runs
+    gsap.set(cols, { yPercent: 100 });
+    gsap.set(lines, { yPercent: 110 });
+    gsap.set(metas, { opacity: 0, y: 14 });
+    gsap.set(stackRef.current, { opacity: 0 });
+    gsap.set(stripRef.current, { x: 0, y: 0, opacity: 1 });
+
+    tl.fromTo(
+        cols,
+        { yPercent: 100 },
+        { yPercent: 0, duration: 1.4, ease: "power3.out", stagger: 0.16 },
+      )
+      .addLabel("push", "+=0.45");
+
+    if (L.isMobile) {
+      tl.fromTo(
+        panelRef.current,
+        { height: 0 },
+        { height: L.panelH, duration: 1.5, ease: "power3.inOut" },
+        "push",
+      ).to(
+        stripRef.current,
+        { y: L.panelH, duration: 1.5, ease: "power3.inOut" },
+        "push",
+      );
+    } else {
+      tl.fromTo(
+        panelRef.current,
+        { width: 0 },
+        { width: L.panelW, duration: 1.6, ease: "power3.inOut" },
+        "push",
+      ).to(
+        stripRef.current,
+        { x: L.panelW, duration: 1.6, ease: "power3.inOut" },
+        "push",
+      );
+    }
+
+    tl.call(() => scifiAudio.playHoloBeep(920, 0.05), [], "push+=0.2")
+      .set(stackRef.current, { opacity: 1 }, "push+=1.6")
+      .set(stripRef.current, { opacity: 0 }, "push+=1.65")
+      .to(
+        lines,
+        { yPercent: 0, duration: 1.1, ease: "power3.out", stagger: 0.12 },
+        "push+=0.95",
+      )
+      .to(
+        metas,
+        { opacity: 1, y: 0, duration: 0.8, ease: "power2.out", stagger: 0.07 },
+        "push+=1.35",
+      );
+
+    timelineRef.current = tl;
     return () => {
-      autoTween.kill();
+      tl.kill();
+      timelineRef.current = null;
     };
-  }, []);
+  }, [stage.height]);
+
+  // Snap to the end layout after a resize once the intro has finished
+  useEffect(() => {
+    const L = layoutRef.current;
+    if (!L || !introDoneRef.current) return;
+    if (panelRef.current) {
+      panelRef.current.style.width = L.isMobile ? "100%" : `${L.panelW}px`;
+      panelRef.current.style.height = L.isMobile ? `${L.panelH}px` : "100%";
+    }
+  }, [stage]);
 
   // --------------------------------------------------------------------------
-  // GSAP VELOCITY-DAMPED SMOOTH SCROLL SCRUBBER
+  // SCROLL: each next property wipes up from the bottom over the last
   // --------------------------------------------------------------------------
   useEffect(() => {
     const container = scrollContainerRef?.current;
-    if (!container) return;
+    const target: HTMLElement | Window = container || window;
 
     const handleScroll = () => {
-      if (!containerRef.current) return;
-      const track = containerRef.current;
-      const scrollTop = container.scrollTop;
-      const trackTop = track.offsetTop;
-      const trackHeight = track.offsetHeight;
-      const clientHeight = container.clientHeight;
-      const maxScroll = trackHeight - clientHeight;
-      if (maxScroll <= 0) return;
-
-      const rawProgress = Math.min(
-        Math.max((scrollTop - trackTop) / maxScroll, 0),
-        1
+      const track = trackRef.current;
+      const L = layoutRef.current;
+      if (!track || !L) return;
+      const rootTop = container ? container.getBoundingClientRect().top : 0;
+      const scrolled = Math.max(0, rootTop - track.getBoundingClientRect().top);
+      targetFloatRef.current = Math.min(
+        total - 1,
+        scrolled / (L.vh * SCROLL_PER_ITEM),
       );
 
-      if (rawProgress > 0.005) {
-        hasUserScrolled.current = true;
-        autoEntranceDone.current = true;
+      // Scrolling during the intro fast-forwards it
+      const tl = timelineRef.current;
+      if (scrolled > 4 && tl && !introDoneRef.current && tl.timeScale() === 1) {
+        tl.timeScale(4);
+      }
+    };
+
+    let rafId = 0;
+    let lastIdx = -1;
+    const tick = () => {
+      const diff = targetFloatRef.current - currentFloatRef.current;
+      currentFloatRef.current += Math.abs(diff) < 0.0005 ? diff : diff * 0.1;
+      const f = currentFloatRef.current;
+
+      for (let idx = 1; idx < total; idx++) {
+        const item = stackItemRefs.current[idx];
+        if (!item) continue;
+        const t = smoothstep(clamp01(f - (idx - 1)));
+        item.style.clipPath = `inset(${((1 - t) * 100).toFixed(2)}% 0% 0% 0%)`;
+        const img = stackImgRefs.current[idx];
+        if (img) img.style.transform = `scale(${(1.18 - 0.18 * t).toFixed(4)})`;
       }
 
-      // GSAP power2.out interpolation delivers butter-smooth momentum
-      gsap.to(progressProxy.current, {
-        value: rawProgress,
-        duration: 0.22,
-        ease: "power2.out",
-        overwrite: "auto",
-        onUpdate: () => {
-          renderUnifiedAnimation(progressProxy.current.value);
-        },
-      });
+      if (progressRef.current) {
+        progressRef.current.style.transform = `scaleX(${(f / (total - 1)).toFixed(4)})`;
+      }
+
+      const idx = Math.round(f);
+      if (idx !== lastIdx) {
+        lastIdx = idx;
+        setActiveIndex(idx);
+      }
+      rafId = requestAnimationFrame(tick);
     };
 
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    // Initialize immediately at current scroll position
+    target.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
-
+    rafId = requestAnimationFrame(tick);
     return () => {
-      container.removeEventListener("scroll", handleScroll);
-      gsap.killTweensOf(progressProxy.current);
+      target.removeEventListener("scroll", handleScroll);
+      cancelAnimationFrame(rafId);
     };
-  }, [scrollContainerRef, renderUnifiedAnimation]);
+  }, [scrollContainerRef, total]);
 
-  // Jump directly to a property when clicking its name in the list
+  // Jump to a property when its name is clicked
   const handleJumpToProperty = (index: number) => {
     const container = scrollContainerRef?.current;
-    const track = containerRef.current;
-    if (!container || !track) return;
-
-    scifiAudio.playHoloBeep(880, 0.08);
-
-    const clientHeight = container.clientHeight;
-    const trackHeight = track.offsetHeight;
-    const maxScroll = trackHeight - clientHeight;
-    if (maxScroll <= 0) return;
-
-    // Convert property index to target scroll progress (sits within Phase 3 range: 0.36 -> 0.90)
-    const startP = 0.36;
-    const endP = 0.88;
-    const targetP = startP + (index / (FEATURED_PROPERTIES.length - 1)) * (endP - startP);
-    const targetScrollTop = track.offsetTop + targetP * maxScroll;
-
+    const track = trackRef.current;
+    const L = layoutRef.current;
+    if (!container || !track || !L) return;
+    scifiAudio.playHoloBeep(880, 0.06);
+    const trackTop =
+      track.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop;
     container.scrollTo({
-      top: targetScrollTop,
+      top: trackTop + index * L.vh * SCROLL_PER_ITEM + 1,
       behavior: "smooth",
     });
   };
 
-  const activeProperty = FEATURED_PROPERTIES[activePropertyIndex];
+  const openDossier = (dossier: PropertyDossier) => {
+    scifiAudio.playHoloBeep(920, 0.1);
+    setSelectedDossier(dossier);
+  };
+
+  useEffect(() => {
+    if (!selectedDossier) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedDossier(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedDossier]);
+
+  const active = FEATURED_PROPERTIES[activeIndex];
+  const stackStyle: React.CSSProperties = stage.isMobile
+    ? { left: 0, right: 0, top: stage.panelH, bottom: 0 }
+    : { left: stage.panelW, right: 0, top: 0, bottom: 0 };
 
   return (
-    <section className="relative w-full bg-[#FCF8F3] text-[#012169] select-none font-['Condor_Medium_Condensed_Italic',sans-serif] italic">
-      {/* Scroll track height: keeps section pinned in viewport while animations execute */}
-      <div ref={containerRef} className="relative h-[600vh]">
+    <section className="relative w-full bg-[#0A1633] text-[#012169] select-none">
+      <div ref={trackRef} className="relative" style={{ height: "500vh" }}>
         <div
-          ref={viewportRef}
-          className="sticky top-0 h-[calc(100vh-53px)] w-full overflow-hidden flex flex-col justify-between bg-[#FCF8F3]"
+          ref={stageRef}
+          className="sticky w-full overflow-hidden bg-[#0A1633]"
+          style={{ top: stage.top, height: stage.height || "100vh" }}
         >
           {/* ==================================================================
-              STAGE 1: 3 MASSIVE FULL-SCREEN IMAGES FILLING ENTIRE SCREEN WIDTH
-              Animates UPWARD from the bottom while section remains fixed in viewport
+              IMAGE STRIP (intro): columns rise, then get pushed right
               ================================================================== */}
           <div
-            ref={bannerContainerRef}
-            style={{
-              transform: "translate3d(0, 100%, 0)",
-              opacity: 0,
-            }}
-            className="absolute inset-0 z-30 w-full h-full flex flex-row items-stretch overflow-hidden pointer-events-auto select-none"
+            ref={stripRef}
+            className="absolute inset-0 z-10 will-change-transform"
+            style={{ opacity: 0 }}
           >
-            {/* Panel 1: Left Third of the Screen */}
-            <div
-              ref={bannerCol1Ref}
-              onClick={() => {
-                scifiAudio.playHoloBeep(920, 0.1);
-                setSelectedDossier(FEATURED_PROPERTIES[0]);
-              }}
-              className="relative w-1/3 h-full overflow-hidden border-r border-white/20 cursor-pointer group select-none bg-[#0E1B33]"
-            >
-              <img
-                src={FEATURED_PROPERTIES[0].image}
-                alt={FEATURED_PROPERTIES[0].title}
-                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#012169]/85 via-black/20 to-transparent flex flex-col justify-end p-6 sm:p-10 text-white">
-                <div>
-                  <h3 className="text-2xl sm:text-4xl font-black uppercase leading-tight tracking-tight text-white">
-                    {FEATURED_PROPERTIES[0].name}
-                  </h3>
-                </div>
+            {FEATURED_PROPERTIES.map((prop, idx) => (
+              <div
+                key={prop.id}
+                ref={(el) => {
+                  stripColRefs.current[idx] = el;
+                }}
+                className="absolute top-0 h-full overflow-hidden"
+                style={{
+                  left: stage.isMobile ? `${idx * 50}%` : `${(idx * 100) / 3}%`,
+                  width: stage.isMobile ? "50%" : "33.3334%",
+                }}
+              >
+                <img
+                  src={prop.image}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
               </div>
-            </div>
-
-            {/* Panel 2: Center Third of the Screen */}
-            <div
-              ref={bannerCol2Ref}
-              onClick={() => {
-                scifiAudio.playHoloBeep(920, 0.1);
-                setSelectedDossier(FEATURED_PROPERTIES[1]);
-              }}
-              className="relative w-1/3 h-full overflow-hidden border-r border-white/20 cursor-pointer group select-none bg-[#0E1B33]"
-            >
-              <img
-                src={FEATURED_PROPERTIES[1].image}
-                alt={FEATURED_PROPERTIES[1].title}
-                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#012169]/85 via-black/20 to-transparent flex flex-col justify-end p-6 sm:p-10 text-white">
-                <div>
-                  <h3 className="text-2xl sm:text-4xl font-black uppercase leading-tight tracking-tight text-white">
-                    {FEATURED_PROPERTIES[1].name}
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            {/* Panel 3: Right Third of the Screen */}
-            <div
-              ref={bannerCol3Ref}
-              onClick={() => {
-                scifiAudio.playHoloBeep(920, 0.1);
-                setSelectedDossier(FEATURED_PROPERTIES[2]);
-              }}
-              className="relative w-1/3 h-full overflow-hidden cursor-pointer group select-none bg-[#0E1B33]"
-            >
-              <img
-                src={FEATURED_PROPERTIES[2].image}
-                alt={FEATURED_PROPERTIES[2].title}
-                className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#012169]/85 via-black/20 to-transparent flex flex-col justify-end p-6 sm:p-10 text-white">
-                <div>
-                  <h3 className="text-2xl sm:text-4xl font-black uppercase leading-tight tracking-tight text-white">
-                    {FEATURED_PROPERTIES[2].name}
-                  </h3>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
 
           {/* ==================================================================
-              STAGE 2 & 3: EDITORIAL SPLIT VIEW (Kharkiv Modernism Architecture)
+              IMAGE STACK (after intro): scroll wipes each property up
               ================================================================== */}
-          <div className="relative w-full h-full flex flex-col justify-center px-4 sm:px-8 lg:px-12 py-2 sm:py-3 z-20">
-            {/* Center Stage: Two-Column Editorial Layout */}
-            <div className="relative w-full flex flex-col lg:flex-row items-center justify-between gap-6 sm:gap-10 my-auto">
-              {/* ----------------------------------------------------------------
-                  LEFT COLUMN: EDITORIAL IDENTITY & PROPERTY DOSSIER DETAILS
-                  ---------------------------------------------------------------- */}
+          <div
+            ref={stackRef}
+            className="absolute z-10 overflow-hidden"
+            style={{ ...stackStyle, opacity: 0 }}
+          >
+            {FEATURED_PROPERTIES.map((prop, idx) => (
               <div
-                ref={leftPanelRef}
-                style={{ opacity: 0 }}
-                className="w-full lg:w-[46%] flex flex-col justify-center h-auto py-2 sm:py-3 lg:pr-6 select-none"
+                key={prop.id}
+                ref={(el) => {
+                  stackItemRefs.current[idx] = el;
+                }}
+                onClick={() => openDossier(prop)}
+                className="group absolute inset-0 cursor-pointer overflow-hidden"
+                style={{
+                  zIndex: idx,
+                  clipPath: idx === 0 ? undefined : "inset(100% 0% 0% 0%)",
+                }}
               >
-                {/* Header: Section Title & Active Property Index */}
-                <div className="flex items-end justify-between border-b border-[#012169]/15 pb-2.5 mb-3">
-                  <div>
-                    <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-black uppercase tracking-tight text-[#012169] leading-[0.92]">
-                      Commercial <br />
-                      <span className="text-[#A10728]">Archives.</span>
-                    </h1>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs sm:text-sm font-bold tracking-[0.2em] text-[#A10728] uppercase block">
-                      [{activeProperty.index} / 06]
-                    </span>
-                    <span className="text-[10px] font-semibold text-[#012169]/50 uppercase tracking-widest">
-                      Commercial Assets
-                    </span>
-                  </div>
+                <img
+                  ref={(el) => {
+                    stackImgRefs.current[idx] = el;
+                  }}
+                  src={prop.image}
+                  alt={prop.title}
+                  className="h-full w-full object-cover will-change-transform"
+                />
+                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-4 sm:p-6 bg-gradient-to-t from-[#012169]/70 to-transparent text-white opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+                  <span className="text-[11px] uppercase tracking-[0.14em]">
+                    {prop.category}
+                  </span>
+                  <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
+                    View Dossier <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
                 </div>
+              </div>
+            ))}
+          </div>
 
-                {/* Synchronized Property Details Content */}
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={activeProperty.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-                    className="space-y-3"
-                  >
-                    {/* Property Title & Location */}
-                    <div>
-                      <h2 className="text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-tight text-[#012169] leading-tight">
-                        {activeProperty.title}
-                      </h2>
-                      <div className="flex items-center gap-2 mt-1 text-xs sm:text-[13px] font-bold text-[#A10728] uppercase tracking-wider">
-                        <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                        <span>{activeProperty.location}</span>
-                        <span className="text-[#012169]/30">•</span>
-                        <span className="text-[#012169]/70">{activeProperty.tenancy}</span>
-                      </div>
-                    </div>
-
-                    {/* Property Detailed Description */}
-                    <p className="text-xs sm:text-[13px] text-[#012169]/80 leading-relaxed font-medium">
-                      {activeProperty.description}
-                    </p>
-
-                    {/* Property Specifications Grid */}
-                    <div className="grid grid-cols-2 gap-2 sm:gap-2.5 pt-0.5">
-                      {activeProperty.specs.map((spec, sIdx) => (
-                        <div
-                          key={sIdx}
-                          className="p-2 sm:p-2.5 rounded-xl border border-[#012169]/10 bg-[#012169]/[0.03] flex flex-col justify-center"
-                        >
-                          <span className="text-[10px] text-[#012169]/55 uppercase font-bold tracking-wider truncate">
-                            {spec.label}
-                          </span>
-                          <span className="text-xs sm:text-sm font-bold text-[#012169] truncate">
-                            {spec.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Key Architectural Highlights */}
-                    <div>
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-[#012169]/50 block mb-1">
-                        Key Architectural Highlights:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {activeProperty.features.map((feat, fIdx) => (
-                          <span
-                            key={fIdx}
-                            className="px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-[#012169]/5 text-[#012169] border border-[#012169]/10"
-                          >
-                            {feat}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Action CTA: Explore Full Dossier */}
-                    <div className="pt-1.5">
-                      <button
-                        onClick={() => {
-                          scifiAudio.playHoloBeep(920, 0.1);
-                          setSelectedDossier(activeProperty);
-                        }}
-                        className="group inline-flex items-center gap-2.5 text-xs sm:text-[13px] font-black uppercase tracking-[0.16em] text-[#012169] hover:text-[#A10728] transition-colors cursor-pointer border-b-2 border-[#012169]/20 hover:border-[#A10728] pb-1"
-                      >
-                        <span>Explore Full Dossier</span>
-                        <ArrowRight className="h-3.5 w-3.5 text-[#A10728] transition-transform duration-300 group-hover:translate-x-1.5" />
-                      </button>
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
+          {/* ==================================================================
+              LIGHT EDITORIAL CANVAS (sweeps in from the left / top)
+              ================================================================== */}
+          <div
+            ref={panelRef}
+            className="absolute left-0 top-0 z-20 overflow-hidden bg-[#F7F9FC]"
+            style={
+              stage.isMobile
+                ? { width: "100%", height: 0 }
+                : { width: 0, height: "100%" }
+            }
+          >
+            <div
+              ref={panelInnerRef}
+              className="absolute left-0 top-0 flex flex-col px-4 sm:px-8 pt-5 sm:pt-7 pb-4 sm:pb-6"
+              style={{
+                width: stage.isMobile ? "100vw" : stage.panelW,
+                height: stage.isMobile ? stage.panelH : "100%",
+              }}
+            >
+              {/* Hairline + scroll progress */}
+              <div className="absolute inset-x-0 top-0 h-px bg-[#012169]/15">
+                <div
+                  ref={progressRef}
+                  className="h-full w-full origin-left bg-[#E4002B]"
+                  style={{ transform: "scaleX(0)" }}
+                />
               </div>
 
-              {/* ----------------------------------------------------------------
-                  RIGHT COLUMN: SEAMLESS STACKED CARD GALLERY (Zero Gaps, Prominent Size)
-                  Each new image smoothly transitions directly over the previous one
-                  ---------------------------------------------------------------- */}
-              <div
-                ref={rightColumnContainerRef}
-                style={{ opacity: 0 }}
-                className="w-full lg:w-[53%] h-[68vh] sm:h-[74vh] lg:h-[78vh] xl:h-[80vh] relative overflow-hidden rounded-[26px] sm:rounded-[34px] border-[2px] border-[#012169]/20 bg-[#0E1B33] shadow-[0_25px_65px_rgba(1,33,105,0.25)] select-none"
-              >
-                {FEATURED_PROPERTIES.map((prop, idx) => (
-                  <div
-                    key={prop.id}
-                    ref={(el) => {
-                      verticalCardRefs.current[idx] = el;
-                    }}
-                    onClick={() => {
-                      scifiAudio.playHoloBeep(920, 0.1);
-                      setSelectedDossier(prop);
-                    }}
-                    style={{
-                      zIndex: 10 + idx,
-                      willChange: "transform, opacity",
-                    }}
-                    className="absolute inset-0 w-full h-full overflow-hidden cursor-pointer group shadow-[0_-25px_50px_rgba(1,33,105,0.35)]"
-                  >
-                    {/* Main Image Frame (Full Size, Edge-to-Edge Without Gaps) */}
-                    <img
-                      src={prop.image}
-                      alt={prop.title}
-                      className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                    />
+              {/* Row 1: title + counter */}
+              <div className="flex items-start justify-between gap-6">
+                <h2 className="font-medium leading-[0.9] tracking-[-0.055em] text-[#012169] text-[min(13vw,8vh)] md:text-[min(7.4vw,14vh)]">
+                  <span className="block overflow-hidden pb-[0.06em]">
+                    <span
+                      ref={(el) => {
+                        titleLineRefs.current[0] = el;
+                      }}
+                      className="block"
+                    >
+                      Commercial
+                    </span>
+                  </span>
+                  <span className="block overflow-hidden pb-[0.06em]">
+                    <span
+                      ref={(el) => {
+                        titleLineRefs.current[1] = el;
+                      }}
+                      className="block"
+                    >
+                      Archives<span className="text-[#E4002B]">.</span>
+                    </span>
+                  </span>
+                </h2>
+                <div
+                  ref={(el) => {
+                    metaRefs.current[0] = el;
+                  }}
+                  className="pt-2 text-[11px] sm:text-xs tabular-nums tracking-[0.08em] text-[#012169]"
+                >
+                  {activeIndex + 1}—{total}
+                </div>
+              </div>
 
-                    {/* Bottom Overlay Info Banner */}
-                    <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7 bg-gradient-to-t from-[#012169]/95 via-[#012169]/55 to-transparent z-10 text-white">
-                      <h3 className="text-xl sm:text-3xl font-black uppercase text-white leading-tight">
-                        {prop.title}
+              {/* Row 2: details (left) + featured list (right) */}
+              <div className="mt-[min(40px,4vh)] grid flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-6 md:gap-12 min-h-0 overflow-hidden">
+                <div
+                  ref={(el) => {
+                    metaRefs.current[1] = el;
+                  }}
+                  className="flex min-h-0 flex-col"
+                >
+                  {/* Learn more rule */}
+                  <button
+                    onClick={() => openDossier(active)}
+                    className="group flex w-full max-w-[320px] items-center justify-between border-b border-[#012169]/40 pb-2 text-[11px] sm:text-xs uppercase tracking-[0.1em] text-[#012169] hover:border-[#E4002B] hover:text-[#E4002B] transition-colors cursor-pointer"
+                  >
+                    Learn More
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                  </button>
+
+                  {/* Active property details */}
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={active.id}
+                      initial={{ opacity: 0, y: 14 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.45, ease: EASE }}
+                      className="mt-[min(28px,3vh)] max-w-[460px]"
+                    >
+                      <h3 className="text-[clamp(16px,2.6vh,24px)] font-semibold leading-tight tracking-[-0.02em] text-[#012169]">
+                        {active.title}
                       </h3>
-                    </div>
+                      <p className="mt-2 line-clamp-3 text-[clamp(12px,1.7vh,14px)] leading-relaxed text-[#012169]/70">
+                        {active.leadText}
+                      </p>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
+                {/* Featured list */}
+                <div
+                  ref={(el) => {
+                    metaRefs.current[2] = el;
+                  }}
+                  className="hidden md:flex gap-8 text-[11px] sm:text-xs tracking-[0.04em]"
+                >
+                  <span className="text-[#012169]">
+                    [{String(total).padStart(2, "0")}] Featured:
+                  </span>
+                  <div>
+                    <span className="block text-[#012169]">Name:</span>
+                    <ul className="mt-2 space-y-[min(4px,0.5vh)]">
+                      {FEATURED_PROPERTIES.map((prop, idx) => (
+                        <li key={prop.id}>
+                          <button
+                            onClick={() => handleJumpToProperty(idx)}
+                            className={`flex items-center gap-2 transition-colors duration-300 cursor-pointer ${
+                              idx === activeIndex
+                                ? "text-[#012169] font-semibold"
+                                : "text-[#012169]/40 hover:text-[#012169]/80"
+                            }`}
+                          >
+                            <span
+                              className={`h-1 w-1 rounded-full bg-[#E4002B] transition-opacity duration-300 ${
+                                idx === activeIndex
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              }`}
+                            />
+                            {prop.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                ))}
+                </div>
+              </div>
+
+              {/* Row 3: footer line */}
+              <div
+                ref={(el) => {
+                  metaRefs.current[3] = el;
+                }}
+                className="mt-4 flex items-end justify-between text-[10px] sm:text-[11px] tracking-[0.06em] text-[#012169]"
+              >
+                <span>The Property Franchise + Commercial Network</span>
+                <span>©2026</span>
               </div>
             </div>
           </div>
@@ -755,118 +741,113 @@ export function WebsiteDetailsSection({
       </div>
 
       {/* ====================================================================
-          DETAILED COMMERCIAL PROPERTY DOSSIER MODAL
-          Opens when user clicks "Explore Dossier" or any image card
+          DOSSIER VIEWER (portalled so it always centres on screen)
           ==================================================================== */}
-      <AnimatePresence>
-        {selectedDossier && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-[#0E1B33]/85 backdrop-blur-md"
-            onClick={() => setSelectedDossier(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.94, y: 30 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.94, y: 30 }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-[28px] border-[2px] border-[#012169]/30 bg-[#0E1B33] text-[#FCF8F3] shadow-2xl flex flex-col md:flex-row"
-            >
-              {/* Close Button */}
-              <button
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {selectedDossier && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                data-lenis-prevent
                 onClick={() => setSelectedDossier(null)}
-                className="absolute top-4 right-4 z-40 p-2.5 rounded-full bg-white/20 text-white hover:bg-[#A10728] transition-all cursor-pointer backdrop-blur-md shadow-md"
-                title="Close Dossier"
+                className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain bg-[#010B24]/90 p-4 sm:p-8 backdrop-blur-xl"
+                role="dialog"
+                aria-modal="true"
+                aria-label={selectedDossier.title}
               >
-                <X className="h-5 w-5" />
-              </button>
-
-              {/* Left Column: Image Showcase */}
-              <div className="relative md:w-[48%] aspect-[4/3] md:aspect-auto md:min-h-[540px] bg-black overflow-hidden">
-                <img
-                  src={selectedDossier.image}
-                  alt={selectedDossier.title}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-6">
-                  <div>
-                    <h3 className="text-2xl font-black uppercase text-white leading-tight">
-                      {selectedDossier.name}
-                    </h3>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column: Asset Specifications & Details */}
-              <div className="md:w-[52%] p-6 sm:p-8 flex flex-col justify-between bg-[#0E1B33] overflow-y-auto">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="h-2 w-2 rounded-full bg-[#A10728] animate-pulse" />
-                    <span className="text-xs font-bold text-[#A10728] tracking-[0.2em] uppercase">
-                      {selectedDossier.category}
-                    </span>
-                  </div>
-
-                  <h3 className="text-2xl sm:text-3xl font-black uppercase text-white leading-tight mb-2">
-                    {selectedDossier.title}
-                  </h3>
-
-                  <p className="text-sm font-medium text-white/80 leading-relaxed mb-6 border-l-2 border-[#A10728] pl-3 py-1">
-                    {selectedDossier.leadText}
-                  </p>
-
-                  {/* Telemetry Matrix Grid */}
-                  <div className="grid grid-cols-2 gap-3 mb-6">
-                    {selectedDossier.specs.map((spec, sIdx) => (
-                      <div
-                        key={sIdx}
-                        className="p-3 rounded-xl border border-white/10 bg-white/5 flex flex-col"
-                      >
-                        <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
-                          {spec.label}
-                        </span>
-                        <span className="text-base font-bold text-[#FCF8F3] truncate">
-                          {spec.value}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Key Highlights */}
-                  <div className="mb-6">
-                    <span className="text-xs font-bold uppercase tracking-wider text-white/70 block mb-2">
-                      Key Highlights:
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedDossier.features.map((feat, fIdx) => (
-                        <span
-                          key={fIdx}
-                          className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-white/10 border border-white/15 text-white"
-                        >
-                          {feat}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Consultation Action */}
-                <div className="pt-4 border-t border-white/15 flex items-center justify-end">
+                <motion.div
+                  initial={{ opacity: 0, y: 24, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 16, scale: 0.98 }}
+                  transition={{ duration: 0.45, ease: EASE }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="relative flex w-full max-w-[1000px] max-h-[calc(100vh-48px)] flex-col md:flex-row overflow-hidden bg-white text-[#012169] shadow-[0_40px_120px_rgba(0,0,0,0.45)]"
+                >
                   <button
                     onClick={() => setSelectedDossier(null)}
-                    className="px-5 py-2.5 rounded-full bg-[#A10728] text-white text-xs font-bold uppercase tracking-wider hover:bg-[#720808] transition-all cursor-pointer shadow-md"
+                    className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#012169] shadow-md hover:bg-[#E4002B] hover:text-white transition-colors cursor-pointer"
+                    aria-label="Close dossier"
                   >
-                    Return to Portfolio
+                    <X className="h-4 w-4" />
                   </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
+
+                  <div className="relative h-56 sm:h-72 md:h-auto md:w-[44%] flex-shrink-0 bg-[#0A1633]">
+                    <img
+                      src={selectedDossier.image}
+                      alt={selectedDossier.title}
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                    <span className="absolute left-4 top-4 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#012169]">
+                      {selectedDossier.index} / {String(total).padStart(2, "0")}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-1 flex-col justify-between overflow-y-auto p-6 sm:p-10">
+                    <div>
+                      <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E4002B]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#E4002B]" />
+                        {selectedDossier.category}
+                      </span>
+                      <h3 className="mt-4 text-3xl sm:text-[38px] font-bold leading-[1.05] tracking-[-0.03em]">
+                        {selectedDossier.title}
+                      </h3>
+                      <p className="mt-3 flex items-center gap-1.5 text-sm text-[#012169]/60">
+                        <MapPin className="h-4 w-4 text-[#E4002B]" />
+                        {selectedDossier.location}
+                      </p>
+                      <p className="mt-6 text-[15px] leading-relaxed text-[#012169]/80">
+                        {selectedDossier.description}
+                      </p>
+
+                      <dl className="mt-8 grid grid-cols-2 border-t border-[#012169]/10">
+                        {selectedDossier.specs.map((spec, i) => (
+                          <div
+                            key={spec.label}
+                            className={`py-4 border-b border-[#012169]/10 ${i % 2 === 0 ? "pr-4 border-r" : "pl-4"}`}
+                          >
+                            <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#012169]/50">
+                              {spec.label}
+                            </dt>
+                            <dd
+                              className={`mt-1 text-lg font-semibold ${i === 0 ? "text-[#E4002B]" : ""}`}
+                            >
+                              {spec.value}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+
+                      <div className="mt-6 flex flex-wrap gap-2">
+                        {selectedDossier.features.map((feat) => (
+                          <span
+                            key={feat}
+                            className="rounded-full border border-[#012169]/15 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em]"
+                          >
+                            {feat}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-10 flex justify-end">
+                      <button
+                        onClick={() => setSelectedDossier(null)}
+                        className="rounded-full bg-[#012169] px-6 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-white hover:bg-[#E4002B] transition-colors cursor-pointer"
+                      >
+                        Back to Archives
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </section>
   );
 }

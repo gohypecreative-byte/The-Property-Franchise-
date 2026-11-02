@@ -192,7 +192,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
       ref={sectionRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="relative z-20 bg-[#FCF8F3] text-[#012169] selection:bg-[#A10728] selection:text-[#FCF8F3] font-['Condor_Medium_Condensed_Italic',sans-serif] italic min-h-[calc(100vh-52px)] w-full flex items-center justify-center py-10 sm:py-16 lg:py-20 px-4 sm:px-8 lg:px-14 select-none overflow-hidden"
+      className="relative z-20 bg-[#F7F9FC] text-[#012169] selection:bg-[#E4002B] selection:text-[#F7F9FC]  min-h-[calc(100vh-52px)] w-full flex items-center justify-center py-10 sm:py-16 lg:py-20 px-4 sm:px-8 lg:px-14 select-none overflow-hidden"
     >
       {/* --------------------------------------------------------------------
           1. FUTURISTIC CONTROL ROOM BACKGROUND & HUD TELEMETRY
@@ -201,7 +201,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
       <div
         className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
         style={{
-          background: `radial-gradient(750px circle at ${mousePos.x}px ${mousePos.y}px, rgba(161, 7, 40, 0.06), transparent 75%)`,
+          background: `radial-gradient(750px circle at ${mousePos.x}px ${mousePos.y}px, rgba(228,0,43, 0.06), transparent 75%)`,
         }}
       />
 
@@ -210,7 +210,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
 
       {/* Rotating Control Room Radar Overlay (Low Opacity Ambient) */}
       <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] sm:w-[900px] h-[600px] sm:h-[900px] rounded-full border border-[#012169]/8 opacity-40 animate-[spin_60s_linear_infinite]" />
-      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full border border-dashed border-[#A10728]/15 opacity-40 animate-[spin_30s_linear_infinite_reverse]" />
+      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full border border-dashed border-[#E4002B]/15 opacity-40 animate-[spin_30s_linear_infinite_reverse]" />
 
 
       {/* Main Two-Column Layout */}
@@ -227,7 +227,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
             <div>
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black uppercase tracking-tight text-[#012169] leading-[0.98]">
                 Let&apos;s Build <br />
-                <span className="text-[#A10728] font-normal italic">
+                <span className="text-[#E4002B] font-normal ">
                   Something Extraordinary.
                 </span>
               </h1>
@@ -266,7 +266,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                     </div>
 
                     <div>
-                      <span className="text-xs font-mono font-bold text-[#A10728] tracking-widest uppercase block mb-1">
+                      <span className="text-xs font-mono font-bold text-[#E4002B] tracking-widest uppercase block mb-1">
                         DOCKET: {referenceId}
                       </span>
                       <h4 className="text-2xl sm:text-3xl font-black uppercase text-[#012169]">
@@ -277,7 +277,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                       </p>
                     </div>
 
-                    <div className="w-full p-4 rounded-xl border border-[#012169]/15 bg-[#FCF8F3] text-left text-xs font-mono space-y-1.5">
+                    <div className="w-full p-4 rounded-xl border border-[#012169]/15 bg-[#F7F9FC] text-left text-xs font-mono space-y-1.5">
                       <div className="flex justify-between">
                         <span className="text-[#012169]/60">MANDATE TYPE:</span>
                         <span className="font-bold text-[#012169] truncate max-w-[220px]">
@@ -300,7 +300,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
 
                     <button
                       onClick={handleResetForm}
-                      className="mt-2 px-6 py-2.5 rounded-full bg-[#012169] text-[#FAF9F6] text-xs font-bold uppercase tracking-wider hover:bg-[#A10728] transition-colors cursor-pointer shadow-md"
+                      className="mt-2 px-6 py-2.5 rounded-full bg-[#012169] text-[#FFFFFF] text-xs font-bold uppercase tracking-wider hover:bg-[#E4002B] transition-colors cursor-pointer shadow-md"
                     >
                       Submit Another Mandate
                     </button>
@@ -320,7 +320,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                           htmlFor="fullName"
                           className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
                             focusedField === "fullName"
-                              ? "text-[#A10728]"
+                              ? "text-[#E4002B]"
                               : "text-[#012169]/70"
                           }`}
                         >
@@ -340,7 +340,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                           onChange={(e) =>
                             setFormData({ ...formData, fullName: e.target.value })
                           }
-                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
+                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
                         />
                       </div>
 
@@ -350,7 +350,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                           htmlFor="email"
                           className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
                             focusedField === "email"
-                              ? "text-[#A10728]"
+                              ? "text-[#E4002B]"
                               : "text-[#012169]/70"
                           }`}
                         >
@@ -370,7 +370,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                           onChange={(e) =>
                             setFormData({ ...formData, email: e.target.value })
                           }
-                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
+                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
                         />
                       </div>
                     </div>
@@ -383,7 +383,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                           htmlFor="phone"
                           className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
                             focusedField === "phone"
-                              ? "text-[#A10728]"
+                              ? "text-[#E4002B]"
                               : "text-[#012169]/70"
                           }`}
                         >
@@ -403,7 +403,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                           onChange={(e) =>
                             setFormData({ ...formData, phone: e.target.value })
                           }
-                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
+                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
                         />
                       </div>
 
@@ -413,7 +413,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                           htmlFor="company"
                           className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
                             focusedField === "company"
-                              ? "text-[#A10728]"
+                              ? "text-[#E4002B]"
                               : "text-[#012169]/70"
                           }`}
                         >
@@ -432,7 +432,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                           onChange={(e) =>
                             setFormData({ ...formData, company: e.target.value })
                           }
-                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
+                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
                         />
                       </div>
                     </div>
@@ -443,7 +443,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                         htmlFor="projectType"
                         className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
                           focusedField === "projectType"
-                            ? "text-[#A10728]"
+                            ? "text-[#E4002B]"
                             : "text-[#012169]/70"
                         }`}
                       >
@@ -464,7 +464,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                               projectType: e.target.value,
                             })
                           }
-                          className="w-full appearance-none bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] focus:outline-none cursor-pointer pr-8 font-bold transition-all duration-300"
+                          className="w-full appearance-none bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] focus:outline-none cursor-pointer pr-8 font-bold transition-all duration-300"
                         >
                           <option className="bg-white text-[#012169]">
                             Trophy Office Tower Acquisition ($100M+)
@@ -485,7 +485,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                             General Executive Consultation
                           </option>
                         </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center text-[#A10728]">
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center text-[#E4002B]">
                           <ChevronDown className="h-4 w-4" />
                         </div>
                       </div>
@@ -507,7 +507,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                           transform: `translate3d(${btnOffset.x}px, ${btnOffset.y}px, 0)`,
                           transition: "transform 0.15s ease-out, background-color 0.25s, box-shadow 0.25s",
                         }}
-                        className="w-full sm:w-auto relative group overflow-hidden px-8 py-3.5 rounded-full bg-[#012169] hover:bg-[#A10728] text-[#FAF9F6] text-xs font-black uppercase tracking-[0.18em] shadow-[0_10px_25px_rgba(1,33,105,0.25)] hover:shadow-[0_15px_35px_rgba(161,7,40,0.4)] active:scale-95 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto relative group overflow-hidden px-8 py-3.5 rounded-full bg-[#012169] hover:bg-[#E4002B] text-[#FFFFFF] text-xs font-black uppercase tracking-[0.18em] shadow-[0_10px_25px_rgba(1,33,105,0.25)] hover:shadow-[0_15px_35px_rgba(228,0,43,0.4)] active:scale-95 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
                       >
                         {isSubmitting ? (
                           <span className="inline-flex items-center gap-2">

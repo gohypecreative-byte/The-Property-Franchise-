@@ -440,7 +440,7 @@ export function AlienCharacters({
         </mesh>
         <mesh position={[0, 1.86, 0]}>
           <sphereGeometry args={[0.182, 20, 20, 0, Math.PI * 2, 0, Math.PI * 0.55]} />
-          <meshStandardMaterial color="#E8D7B8" roughness={0.8} metalness={0.0} />
+          <meshStandardMaterial color="#DCE4F0" roughness={0.8} metalness={0.0} />
         </mesh>
         {/* Layered Hair Falling Over Shoulders */}
         <mesh position={[0, 1.66, -0.12]} rotation={[0.2, 0, 0]}>
@@ -449,11 +449,11 @@ export function AlienCharacters({
         </mesh>
         <mesh position={[-0.14, 1.68, 0.04]} rotation={[0, 0.2, -0.1]}>
           <boxGeometry args={[0.07, 0.32, 0.05]} />
-          <meshStandardMaterial color="#E8D7B8" roughness={0.8} />
+          <meshStandardMaterial color="#DCE4F0" roughness={0.8} />
         </mesh>
         <mesh position={[0.14, 1.68, 0.04]} rotation={[0, -0.2, 0.1]}>
           <boxGeometry args={[0.07, 0.32, 0.05]} />
-          <meshStandardMaterial color="#E8D7B8" roughness={0.8} />
+          <meshStandardMaterial color="#DCE4F0" roughness={0.8} />
         </mesh>
         {/* Azure Blue Eyes */}
         <mesh position={[-0.065, 1.75, 0.155]}>

@@ -29,7 +29,7 @@ const ITEMS = [
     number: "02",
     label: "Commonwealth Financial Center",
     category: "COMMERCIAL CAPITAL & SYNDICATION",
-    color: "#A10728", // Crimson
+    color: "#E4002B", // Crimson
     image: "/commercial_business_campus.jpg",
     valuation: "$138,000,000",
     location: "Central Financial Core",
@@ -137,7 +137,7 @@ export function ScrollHorizontalGallery({ scrollContainerRef }: ScrollHorizontal
   const x = useTransform(scrollYProgress, [0, 1], [0, -totalDistance]);
 
   return (
-    <section id="horizontal-gallery" className="relative z-20 bg-[#FCF8F3] text-[#012169]">
+    <section id="horizontal-gallery" className="relative z-20 bg-[#F7F9FC] text-[#012169]">
       {/* 300vh Scroll Container (Exact reference structure: sticks in view, translates horizontally as you scroll) */}
       <div ref={containerRef} className="relative h-[270vh]">
         <div className="sticky top-0 h-screen w-full flex flex-col justify-between py-4 sm:py-8 md:py-12 overflow-hidden select-none">
@@ -145,8 +145,8 @@ export function ScrollHorizontalGallery({ scrollContainerRef }: ScrollHorizontal
           <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 flex-shrink-0 z-20">
             {/* Section Title */}
             <div className="text-center pt-1 sm:pt-2 pb-1 sm:pb-2">
-              <h2 className="text-2xl sm:text-4xl md:text-5xl font-['Condor_Med_Cond',sans-serif] font-bold uppercase tracking-tight leading-tight">
-                <span className="text-[#012169]">REAL ESTATE SERVICES</span> <span className="text-[#A10728]">&</span> <span className="text-[#012169]">SHOWCASE</span>
+              <h2 className="text-2xl sm:text-4xl md:text-5xl font-bold uppercase tracking-tight leading-tight">
+                <span className="text-[#012169]">REAL ESTATE SERVICES</span> <span className="text-[#E4002B]">&</span> <span className="text-[#012169]">SHOWCASE</span>
               </h2>
             </div>
           </div>
@@ -170,7 +170,7 @@ export function ScrollHorizontalGallery({ scrollContainerRef }: ScrollHorizontal
                 {ITEMS.map((item) => (
                   <div
                     key={item.id}
-                    className="group relative flex-shrink-0 h-[370px] sm:h-[460px] md:h-[530px] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-[#0E1B33]/15 bg-[#0E1B33] shadow-[0_20px_50px_rgba(14,27,51,0.22)] transition-all duration-300 hover:border-[#A10728] hover:shadow-[0_24px_60px_rgba(161,7,40,0.25)] select-none"
+                    className="group relative flex-shrink-0 h-[370px] sm:h-[460px] md:h-[530px] rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-[#0A1633]/15 bg-[#0A1633] shadow-[0_20px_50px_rgba(14,27,51,0.22)] transition-all duration-300 hover:border-[#E4002B] hover:shadow-[0_24px_60px_rgba(228,0,43,0.25)] select-none"
                     style={
                       {
                         width: `${itemWidth}px`,
@@ -191,29 +191,29 @@ export function ScrollHorizontalGallery({ scrollContainerRef }: ScrollHorizontal
                     <div
                       className="absolute inset-0 opacity-80 transition-opacity duration-500 group-hover:opacity-95 pointer-events-none"
                       style={{
-                        background: `linear-gradient(to bottom, transparent 35%, rgba(14, 27, 51, 0.65) 60%, #0E1B33 130%)`,
+                        background: `linear-gradient(to bottom, transparent 35%, rgba(14, 27, 51, 0.65) 60%, #0A1633 130%)`,
                       }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0E1B33]/95 via-[#0E1B33]/40 to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0A1633]/95 via-[#0A1633]/40 to-transparent pointer-events-none" />
 
                     {/* Bottom Content Container */}
-                    <div className="absolute bottom-4 sm:bottom-7 left-4 sm:left-7 right-4 sm:right-7 z-10 text-[#FAF9F6]">
+                    <div className="absolute bottom-4 sm:bottom-7 left-4 sm:left-7 right-4 sm:right-7 z-10 text-[#FFFFFF]">
                       {/* Title */}
-                      <h3 className="font-['Condor_Med_Cond',sans-serif] text-lg sm:text-2xl md:text-3xl font-bold text-[#FAF9F6] leading-snug group-hover:text-white transition-colors drop-shadow-md">
+                      <h3 className=" text-lg sm:text-2xl md:text-3xl font-bold text-[#FFFFFF] leading-snug group-hover:text-white transition-colors drop-shadow-md">
                         {item.label}
                       </h3>
 
                       {/* Description */}
-                      <p className="mt-2 text-xs sm:text-sm text-[#FAF9F6]/85 line-clamp-2 font-sans leading-relaxed">
+                      <p className="mt-2 text-xs sm:text-sm text-[#FFFFFF]/85 line-clamp-2 font-sans leading-relaxed">
                         {item.description}
                       </p>
 
                       {/* Service & Action Prompt */}
-                      <div className="mt-3.5 pt-3 border-t border-[#FAF9F6]/20 flex items-center justify-between">
-                        <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-[#FCF8F3] tracking-wider uppercase truncate max-w-[70%] bg-[#012169]/80 px-2 py-0.5 rounded border border-[#012169]/50">
+                      <div className="mt-3.5 pt-3 border-t border-[#FFFFFF]/20 flex items-center justify-between">
+                        <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-[#F7F9FC] tracking-wider uppercase truncate max-w-[70%] bg-[#012169]/80 px-2 py-0.5 rounded border border-[#012169]/50">
                           {item.service}
                         </span>
-                        <span className="inline-flex items-center gap-1 font-mono text-[11px] sm:text-xs font-bold uppercase tracking-wider group-hover:translate-x-1 transition-transform text-[#A10728] group-hover:text-white">
+                        <span className="inline-flex items-center gap-1 font-mono text-[11px] sm:text-xs font-bold uppercase tracking-wider group-hover:translate-x-1 transition-transform text-[#E4002B] group-hover:text-white">
                           <span>Details</span>
                           <ArrowUpRight className="h-4 w-4" />
                         </span>

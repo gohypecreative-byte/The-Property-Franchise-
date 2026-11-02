@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Navigation } from "./ui/Navigation";
-import { HeroVideoScene } from "./ui/HeroVideoScene";
+import { HeroFrameScene } from "./ui/HeroFrameScene";
 import { RealEstateIntroVideo } from "./ui/RealEstateIntroVideo";
 import { BrandMark } from "./ui/BrandMark";
 import { RealEstateReelsSection } from "./ui/RealEstateReelsSection";
@@ -92,8 +92,8 @@ export function LandingExperience() {
         onReset={handleCloseModal}
       />
 
-      {/* Hero: bridge footage with clickable crew */}
-      <HeroVideoScene
+      {/* Hero: scroll-scrubbed frame sequence ending on the bridge with clickable crew */}
+      <HeroFrameScene
         onMainCharacterClick={handleMainCharacterClick}
         onReelsClick={handleReelsClick}
         onPlanetsClick={handlePlanetsClick}

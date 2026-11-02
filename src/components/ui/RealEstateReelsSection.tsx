@@ -148,6 +148,28 @@ export const REEL_PROPERTIES: ReelProperty[] = [
       "100% Rooftop Solar",
     ],
   },
+  {
+    id: "metropolis-exchange",
+    title: "Metropolis Global Financial Center",
+    shortTitle: "METROPOLIS GLOBAL EXCHANGE",
+    category: "towers",
+    categoryLabel: "FINANCIAL CENTER",
+    price: "$210,000,000",
+    location: "Sovereign Financial Square",
+    floors: 54,
+    tenancy: "Global Banking Consortium",
+    sqft: "590,000 sq.ft",
+    duration: "1:50",
+    image: "/real_estate_exterior.jpg",
+    videoSrc: "/real-estate-intro.mp4",
+    description:
+      "Prestigious sovereign banking headquarters featuring panoramic atrium levels, redundant tier-4 data connectivity, and institutional trading floors.",
+    features: [
+      "54 High-Rise Levels",
+      "Tier-4 Data Redundancy",
+      "Institutional Trading Floor",
+    ],
+  },
 ];
 
 interface RealEstateReelsSectionProps {
@@ -160,13 +182,17 @@ export function RealEstateReelsSection({
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  // References for all persistent card elements
+  // References for all persistent card elements and their editorial top labels
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // GSAP Smooth Power-Scrub Proxy
   const progressProxy = useRef<{ value: number }>({ value: 0 });
   const viewportWidthRef = useRef<number>(1200);
-  const [viewportWidth, setViewportWidth] = useState<number>(1200);
+  const [, setViewportWidth] = useState<number>(1200);
+
+  // Audio milestone tracker to trigger subtle ticks during card stacking
+  const lastSoundMilestoneRef = useRef<number>(-1);
 
   // Modal Video Viewer State
   const [selectedProperty, setSelectedProperty] = useState<ReelProperty | null>(null);
@@ -174,10 +200,12 @@ export function RealEstateReelsSection({
   const [isMuted, setIsMuted] = useState(true);
   const modalVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Rotations for the overlapping composition
-  const baseRotations = [-1.8, 2.2, -1.0, 1.8, -2.0];
+  // Stacking deck geometry (organic rotations and subtle offsets)
+  const stackRotations = [-2.8, 2.4, -1.8, 2.0, -1.2, 1.4];
+  const stackOffsetsX = [-14, 14, -10, 10, -6, 6];
+  const stackOffsetsY = [8, -6, 6, -4, 4, 0];
 
-  // Measure viewport width
+  // Measure viewport width on mount and resize
   useEffect(() => {
     const handleResize = () => {
       const width =
@@ -195,175 +223,179 @@ export function RealEstateReelsSection({
 
   // --------------------------------------------------------------------------
   // UNIFIED GSAP ANIMATION CORE
-  // 1. Initial state (p = 0): Reels are NOT visible initially when entering
-  // 2. Scroll begins (0.00 -> 0.16): Reel 0 enters from top, starts small & grows
-  // 3. Stacking (0.16 -> 0.46): Reels smoothly grow and stack one on top of another
-  // 4. Separation (0.46 -> 0.68): Reels smoothly separate into aligned horizontal row
-  // 5. Horizontal Gallery (0.68 -> 1.00): Scroll triggers smooth horizontal movement
+  //
+  // 1. Initial State (p = 0.00):
+  //    - Reel 0 is small and centered in the viewport.
+  //    - Other reels are hidden ready to emerge.
+  //
+  // 2. Stage 1: Emergence, Stacking & Continuous Expansion (p: 0.00 -> 0.42):
+  //    - Multiple reels gradually emerge one after another from below.
+  //    - Each reel stacks on top of the preceding one with subtle organic rotation.
+  //    - As each new reel emerges, the entire stack continuously increases in size,
+  //      until the main reel reaches full display size.
+  //
+  // 3. Stage 2: Spread into Horizontal Gallery (p: 0.42 -> 0.58):
+  //    - The stack fans out smoothly into an aligned side-by-side horizontal row.
+  //    - Card rotations flatten to 0deg.
+  //    - Editorial title labels fade in above each card.
+  //
+  // 4. Stage 3: Smooth Horizontal Scrolling Navigation (p: 0.58 -> 0.94):
+  //    - Further scrolling drives a smooth horizontal scrolling animation across all reels.
+  //
+  // 5. Stage 4: Settled End State (p: 0.94 -> 1.00):
+  //    - Gallery holds at the end and naturally unpins into the next section.
   // --------------------------------------------------------------------------
   const renderUnifiedAnimation = useCallback((p: number) => {
     const width = viewportWidthRef.current;
+    const height = typeof window !== "undefined" ? window.innerHeight : 900;
     const isMobile = width < 640;
     const isTablet = width >= 640 && width < 1024;
+    const isLarge = width >= 1440;
     const numCards = REEL_PROPERTIES.length;
 
-    // Full Gallery Dimensions
-    const fullCardWidth = isMobile ? 240 : isTablet ? 280 : 330;
-    const fullGap = isMobile ? 14 : isTablet ? 18 : 24; // minimal spacing
-    const totalFullWidth = numCards * fullCardWidth + (numCards - 1) * fullGap;
+    // Full Card Dimensions (large & prominent vertically)
+    const maxCardHeight = Math.max(380, height * (isMobile ? 0.62 : 0.68));
+    const calcWidth = Math.round(maxCardHeight * (9 / 15));
+    const fullCardWidth = isMobile
+      ? Math.min(270, Math.max(230, calcWidth))
+      : isTablet
+      ? Math.min(320, Math.max(270, calcWidth))
+      : isLarge
+      ? Math.min(420, Math.max(350, calcWidth))
+      : Math.min(370, Math.max(310, calcWidth));
+
+    const fullGap = isMobile ? 16 : isTablet ? 24 : 32;
+    const leftMargin = isMobile ? 24 : isTablet ? 48 : 80;
+    const galleryStartCenter = -(width / 2) + leftMargin + fullCardWidth / 2;
+
+    // Horizontal gallery target positions when aligned in a row
+    const baseGalleryTargetsX = REEL_PROPERTIES.map((_, i) => {
+      return galleryStartCenter + i * (fullCardWidth + fullGap);
+    });
+
     const maxGalleryScroll = Math.max(
       0,
-      totalFullWidth - width + (isMobile ? 40 : 160)
+      baseGalleryTargetsX[numCards - 1] +
+        fullCardWidth / 2 -
+        (width / 2 - leftMargin)
     );
 
-    // Stacking Step
-    const stackOverlapStep = isMobile ? 65 : isTablet ? 95 : 130;
+    // Initial small scale when entering the section
+    const initialScale = isMobile ? 0.44 : 0.36;
 
-    // Target positions in the overlapping stack
-    const stackTargetsX = REEL_PROPERTIES.map((_, i) => {
-      return -((numCards - 1) * stackOverlapStep) / 2 + i * stackOverlapStep;
-    });
+    // Phase 1: Deck scale increases continuously from initialScale to 1.00
+    const deckProgress = Math.min(1.0, Math.max(0, p / 0.42));
+    const easeDeck = 1 - Math.pow(1 - deckProgress, 2.2);
+    const currentDeckScale = initialScale + (1.0 - initialScale) * easeDeck;
 
-    // Target positions in the separated horizontal gallery
-    const galleryTargetsX = REEL_PROPERTIES.map((_, i) => {
-      return (
-        -totalFullWidth / 2 +
-        i * (fullCardWidth + fullGap) +
-        fullCardWidth / 2
-      );
-    });
+    // Sound milestone check during emergence
+    const currentMilestone = Math.floor(p / 0.08);
+    if (
+      currentMilestone !== lastSoundMilestoneRef.current &&
+      currentMilestone >= 1 &&
+      currentMilestone <= numCards
+    ) {
+      lastSoundMilestoneRef.current = currentMilestone;
+      scifiAudio.playHoloBeep(840 + currentMilestone * 35, 0.04);
+    }
 
-    // Staggered entry windows for stacking (Reels 1..4)
-    const stackWindows = [
-      { start: 0.0, end: 0.16 }, // Reel 0 enters from top
-      { start: 0.18, end: 0.25 }, // Reel 1 slides in & stacks
-      { start: 0.25, end: 0.32 }, // Reel 2 slides in & stacks
-      { start: 0.32, end: 0.39 }, // Reel 3 slides in & stacks
-      { start: 0.39, end: 0.46 }, // Reel 4 slides in & stacks
-    ];
-
-    // Animate every persistent card smoothly along the single timeline
+    // Animate every card based on the current progress
     for (let idx = 0; idx < numCards; idx++) {
       const cardEl = cardRefs.current[idx];
+      const labelEl = labelRefs.current[idx];
       if (!cardEl) continue;
 
       let cardX = 0;
       let cardY = 0;
       let cardScale = 1;
       let cardRotate = 0;
-      let cardOpacity = 0; // Default to invisible
+      let cardOpacity = 0;
+      let labelOpacity = 0;
 
-      const stackX = stackTargetsX[idx];
-      const galleryX = galleryTargetsX[idx];
-      const rot = baseRotations[idx];
+      const stackX = stackOffsetsX[idx % stackOffsetsX.length];
+      const stackY = stackOffsetsY[idx % stackOffsetsY.length];
+      const stackRot = stackRotations[idx % stackRotations.length];
+      const galleryX = baseGalleryTargetsX[idx];
 
-      if (idx === 0) {
+      if (p <= 0.42) {
         // ====================================================================
-        // REEL 0: TOP ENTRANCE & SMOOTH GROWTH (Appears only on scroll)
-        // At p = 0: COMPLETELY INVISIBLE.
-        // As user scrolls (0.00 -> 0.16): glides from top, starts small & grows
+        // STAGE 1: EMERGENCE, STACKING & SIZE EXPANSION
         // ====================================================================
-        if (p <= 0.002) {
-          // Completely hidden initially when entering the section
-          cardOpacity = 0;
-          cardScale = 0.38;
-          cardY = -220;
-          cardX = 0;
-          cardRotate = 0;
-        } else if (p <= 0.16) {
-          // Actively entering from top and expanding smoothly
-          const t = p / 0.16;
-          const easeT = 1 - Math.pow(1 - t, 3); // Cubic ease-out
-
-          cardX = 0;
-          cardY = -220 * (1 - easeT); // Slides down smoothly from the top
-          cardScale = 0.38 + 0.62 * easeT; // Starts small, gradually increases in size
-          cardRotate = 0;
-          cardOpacity = Math.min(1.0, t * 2.8); // Fades in smoothly as user scrolls
-        } else if (p <= 0.24) {
-          // Glides from center (X=0) to its stacked position
-          const glideT = (p - 0.16) / 0.08;
-          const easeGlide = glideT * glideT * (3 - 2 * glideT);
-          cardX = stackX * easeGlide;
-          cardY = 0;
-          cardScale = 1.0;
-          cardRotate = rot * easeGlide;
+        if (idx === 0) {
+          // Reel 0: Centered small reel at p=0, expands as other reels stack over it
           cardOpacity = 1.0;
-        } else if (p <= 0.46) {
-          // Rests in the stack as subsequent reels layer over it
-          cardX = stackX;
-          cardY = 0;
-          cardScale = 1.0;
-          cardRotate = rot;
-          cardOpacity = 1.0;
-        } else if (p <= 0.68) {
-          // Separates from overlapping stack into horizontal gallery
-          const sepT = (p - 0.46) / 0.22;
-          const easeSep = sepT * sepT * (3 - 2 * sepT);
-          cardX = stackX * (1 - easeSep) + galleryX * easeSep;
-          cardY = 0;
-          cardScale = 1.0;
-          cardRotate = rot * (1 - easeSep);
-          cardOpacity = 1.0;
+          cardScale = currentDeckScale;
+          cardX = stackX * easeDeck;
+          cardY = stackY * easeDeck;
+          cardRotate = stackRot * easeDeck;
+          labelOpacity = 0;
         } else {
-          // Horizontal gallery scrolling across the screen
-          const horizT = (p - 0.68) / 0.32;
-          cardX = galleryX - horizT * maxGalleryScroll;
-          cardY = 0;
-          cardScale = 1.0;
-          cardRotate = 0;
-          cardOpacity = 1.0;
+          // Reels 1..5: Staggered emergence into the expanding stack
+          const entryStart = 0.04 + (idx - 1) * (0.34 / (numCards - 1));
+          const entryEnd = entryStart + 0.085;
+
+          if (p < entryStart) {
+            cardOpacity = 0;
+            cardScale = initialScale;
+            cardX = 0;
+            cardY = 90;
+            cardRotate = 0;
+            labelOpacity = 0;
+          } else if (p <= entryEnd) {
+            const rawT = (p - entryStart) / (entryEnd - entryStart);
+            const easeEntry = 1 - Math.pow(1 - rawT, 3);
+
+            cardOpacity = Math.min(1.0, rawT * 2.2);
+            cardScale = currentDeckScale * (0.90 + 0.10 * easeEntry);
+            cardX = stackX * easeEntry;
+            cardY = stackY * easeEntry + (1 - easeEntry) * 75;
+            cardRotate = stackRot * easeEntry;
+            labelOpacity = 0;
+          } else {
+            // Settled in the stack
+            cardOpacity = 1.0;
+            cardScale = currentDeckScale;
+            cardX = stackX;
+            cardY = stackY;
+            cardRotate = stackRot;
+            labelOpacity = 0;
+          }
         }
+      } else if (p <= 0.58) {
+        // ====================================================================
+        // STAGE 2: SPREAD FROM STACK INTO HORIZONTAL GALLERY
+        // ====================================================================
+        const spreadT = (p - 0.42) / (0.58 - 0.42);
+        const easeSpread = spreadT * spreadT * (3 - 2 * spreadT);
+
+        cardOpacity = 1.0;
+        cardScale = 1.00;
+        cardX = stackX * (1 - easeSpread) + galleryX * easeSpread;
+        cardY = stackY * (1 - easeSpread);
+        cardRotate = stackRot * (1 - easeSpread);
+        labelOpacity = easeSpread;
+      } else if (p <= 0.94) {
+        // ====================================================================
+        // STAGE 3: HORIZONTAL GALLERY SCROLLING NAVIGATION
+        // ====================================================================
+        const horizT = Math.min(1.0, Math.max(0, (p - 0.58) / (0.94 - 0.58)));
+
+        cardOpacity = 1.0;
+        cardScale = 1.00;
+        cardX = galleryX - horizT * maxGalleryScroll;
+        cardY = 0;
+        cardRotate = 0;
+        labelOpacity = 1.0;
       } else {
         // ====================================================================
-        // REELS 1, 2, 3, 4: SEQUENTIALLY GROW & STACK ON TOP OF EACH OTHER
+        // STAGE 4: SETTLED END STATE (Prepares for next section scroll)
         // ====================================================================
-        const win = stackWindows[idx];
-
-        if (p < win.start) {
-          // Not yet entered — completely invisible
-          cardOpacity = 0;
-          cardScale = 0.45;
-          cardX = width / 2 + 150;
-          cardY = 70;
-          cardRotate = rot;
-        } else if (p <= win.end) {
-          // Actively sliding in, growing, and stacking over previous reels
-          const rawEntryT = (p - win.start) / (win.end - win.start);
-          const easeEntryT = 1 - Math.pow(1 - rawEntryT, 3); // Cubic ease-out
-
-          cardScale = 0.48 + 0.52 * easeEntryT; // Smoothly increases in size as it stacks
-          const offscreenX = width / 2 + 150;
-          cardX = offscreenX * (1 - easeEntryT) + stackX * easeEntryT;
-          cardY = 65 * (1 - easeEntryT);
-          cardRotate = rot * easeEntryT;
-          cardOpacity = Math.min(1.0, rawEntryT * 2.5);
-        } else if (p <= 0.46) {
-          // Settled in the layered stack
-          cardX = stackX;
-          cardY = 0;
-          cardScale = 1.0;
-          cardRotate = rot;
-          cardOpacity = 1.0;
-        } else if (p <= 0.68) {
-          // Gradually separate into clean horizontal row
-          const sepT = (p - 0.46) / 0.22;
-          const easeSep = sepT * sepT * (3 - 2 * sepT);
-
-          cardX = stackX * (1 - easeSep) + galleryX * easeSep;
-          cardY = 0;
-          cardScale = 1.0;
-          cardRotate = rot * (1 - easeSep);
-          cardOpacity = 1.0;
-        } else {
-          // Horizontal gallery scrolling across the screen
-          const horizT = (p - 0.68) / 0.32;
-          cardX = galleryX - horizT * maxGalleryScroll;
-          cardY = 0;
-          cardScale = 1.0;
-          cardRotate = 0;
-          cardOpacity = 1.0;
-        }
+        cardOpacity = 1.0;
+        cardScale = 1.00;
+        cardX = galleryX - maxGalleryScroll;
+        cardY = 0;
+        cardRotate = 0;
+        labelOpacity = 1.0;
       }
 
       // Hardware-accelerated GPU direct transform
@@ -372,6 +404,10 @@ export function RealEstateReelsSection({
       )}px, 0) scale(${cardScale.toFixed(4)}) rotate(${cardRotate.toFixed(2)}deg)`;
       cardEl.style.opacity = cardOpacity.toFixed(3);
       cardEl.style.pointerEvents = cardOpacity > 0.35 ? "auto" : "none";
+
+      if (labelEl) {
+        labelEl.style.opacity = labelOpacity.toFixed(3);
+      }
     }
   }, []);
 
@@ -380,15 +416,30 @@ export function RealEstateReelsSection({
   // --------------------------------------------------------------------------
   useEffect(() => {
     const container = scrollContainerRef?.current;
-    if (!container) return;
+    const target =
+      container || (typeof window !== "undefined" ? window : null);
+    if (!target) return;
 
     const handleScroll = () => {
       if (!containerRef.current) return;
       const track = containerRef.current;
-      const scrollTop = container.scrollTop;
-      const trackTop = track.offsetTop;
+
+      let scrollTop = 0;
+      let clientHeight = 0;
+      let trackTop = 0;
       const trackHeight = track.offsetHeight;
-      const clientHeight = container.clientHeight;
+
+      if (container) {
+        scrollTop = container.scrollTop;
+        clientHeight = container.clientHeight;
+        trackTop = track.offsetTop;
+      } else {
+        scrollTop = window.scrollY || window.pageYOffset;
+        clientHeight = window.innerHeight;
+        const rect = track.getBoundingClientRect();
+        trackTop = rect.top + scrollTop;
+      }
+
       const maxScroll = trackHeight - clientHeight;
       if (maxScroll <= 0) return;
 
@@ -398,21 +449,22 @@ export function RealEstateReelsSection({
       // GSAP smooth power scrub with fluid weighted momentum
       gsap.to(progressProxy.current, {
         value: p,
-        duration: 0.35,
+        duration: 0.28,
         ease: "power2.out",
-        overwrite: true,
+        overwrite: "auto",
         onUpdate: () => {
           renderUnifiedAnimation(progressProxy.current.value);
         },
       });
     };
 
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    // Initial call to set initial invisibility at p = 0
+    target.addEventListener("scroll", handleScroll, { passive: true });
+    // Initial call to render the small centered preview reel at p = 0
     renderUnifiedAnimation(0);
+    handleScroll();
 
     return () => {
-      container.removeEventListener("scroll", handleScroll);
+      target.removeEventListener("scroll", handleScroll);
       gsap.killTweensOf(progressProxy.current);
     };
   }, [scrollContainerRef, renderUnifiedAnimation]);
@@ -445,9 +497,17 @@ export function RealEstateReelsSection({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedProperty]);
 
-  const isMobile = viewportWidth < 640;
-  const isTablet = viewportWidth >= 640 && viewportWidth < 1024;
-  const fullCardWidth = isMobile ? 240 : isTablet ? 280 : 330;
+  const isMobile = viewportWidthRef.current < 640;
+  const isTablet =
+    viewportWidthRef.current >= 640 && viewportWidthRef.current < 1024;
+  const isLarge = viewportWidthRef.current >= 1440;
+  const fullCardWidth = isMobile
+    ? 250
+    : isTablet
+    ? 300
+    : isLarge
+    ? 400
+    : 360;
 
   return (
     <section
@@ -459,11 +519,11 @@ export function RealEstateReelsSection({
 
       {/* ====================================================================
           EXPANSIVE 550vh PINNED SCROLL TRACK
-          1. Initial: Reels are NOT visible initially
-          2. Scroll starts: Reel 0 smoothly enters from the top, starts small & grows
-          3. Stacking: Reels 1..4 slide in, grow, and stack on top of each other
-          4. Separation: Reels smoothly separate into aligned horizontal row
-          5. Horizontal Gallery: Scroll triggers smooth horizontal movement
+          1. Initial: Reel 0 enters small in the center (scale ~0.36)
+          2. Scroll starts (0.00 -> 0.42): Multiple reels emerge one by one,
+             stacking on top of each other while the deck continuously expands
+          3. Separation (0.42 -> 0.58): Stack spreads out into horizontal row
+          4. Horizontal Gallery (0.58 -> 0.94): Scroll navigates horizontally
           ==================================================================== */}
       <div ref={containerRef} className="relative h-[550vh]">
         <div
@@ -488,11 +548,32 @@ export function RealEstateReelsSection({
                   willChange: "transform, opacity",
                   transformOrigin: "center center",
                 }}
-                className="absolute flex flex-col items-center cursor-pointer group"
+                className="absolute flex flex-col items-center cursor-pointer group select-none"
               >
+                {/* Editorial Top Label above each Reel (fades in as row spreads) */}
+                <div
+                  ref={(el) => {
+                    labelRefs.current[idx] = el;
+                  }}
+                  style={{ opacity: 0 }}
+                  className="w-full flex items-center justify-between pb-2.5 px-1 select-none pointer-events-none transition-opacity duration-150"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-[#A10728] flex-shrink-0">
+                      [{String(idx + 1).padStart(2, "0")}]
+                    </span>
+                    <span className="text-xs sm:text-sm font-black uppercase tracking-[0.14em] text-[#012169] truncate">
+                      {property.shortTitle}
+                    </span>
+                  </div>
+                  <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[#012169]/60 flex-shrink-0 ml-2">
+                    {property.categoryLabel}
+                  </span>
+                </div>
+
                 {/* Main Card Frame */}
-                <div className="relative w-full aspect-[9/15] rounded-[22px] sm:rounded-[26px] overflow-hidden border-[2px] border-[#012169]/25 bg-[#0E1B33] shadow-[0_20px_50px_rgba(1,33,105,0.25)] hover:shadow-[0_25px_65px_rgba(161,7,40,0.38)] hover:border-[#A10728] transition-all duration-300 select-none">
-                  {/* Background Video Layer */}
+                <div className="relative w-full aspect-[9/15] rounded-[22px] sm:rounded-[28px] overflow-hidden border-[2px] border-[#012169]/20 bg-[#0E1B33] shadow-[0_20px_50px_rgba(1,33,105,0.22)] group-hover:shadow-[0_25px_65px_rgba(161,7,40,0.35)] group-hover:border-[#A10728] transition-all duration-300">
+                  {/* Ambient Looping Video */}
                   <div className="absolute inset-0 z-0 bg-[#0A1224] overflow-hidden">
                     <video
                       src={property.videoSrc}
@@ -503,6 +584,26 @@ export function RealEstateReelsSection({
                       playsInline
                       className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
+                  </div>
+
+                  {/* Subtle Gradient Vignette */}
+                  <div className="absolute inset-0 z-10 pointer-events-none bg-gradient-to-t from-[#012169]/90 via-transparent to-black/20" />
+
+                  {/* Bottom Information Overlay */}
+                  <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 z-20 flex items-end justify-between text-white">
+                    <div className="space-y-1 max-w-[75%]">
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-wider bg-[#A10728] text-white inline-block">
+                        {property.price}
+                      </span>
+                      <h4 className="text-sm sm:text-base font-black uppercase text-white leading-tight line-clamp-1">
+                        {property.title}
+                      </h4>
+                    </div>
+
+                    {/* Circular Play Button Indicator */}
+                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-white/20 group-hover:bg-[#A10728] backdrop-blur-md text-white flex items-center justify-center transition-all duration-300 shadow-md group-hover:scale-110 flex-shrink-0">
+                      <Play className="h-4 w-4 fill-current ml-0.5" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -612,7 +713,7 @@ export function RealEstateReelsSection({
                       <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
                         Asset Valuation
                       </span>
-                      <span className="text-lg font-mono font-bold text-[#A10728]">
+                      <span className="text-lg font-bold text-[#A10728]">
                         {selectedProperty.price}
                       </span>
                     </div>
@@ -621,7 +722,7 @@ export function RealEstateReelsSection({
                       <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
                         Gross Leasable Area
                       </span>
-                      <span className="text-lg font-mono font-bold text-white">
+                      <span className="text-lg font-bold text-white">
                         {selectedProperty.sqft}
                       </span>
                     </div>
@@ -630,7 +731,7 @@ export function RealEstateReelsSection({
                       <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
                         Building Floors
                       </span>
-                      <span className="text-lg font-mono font-bold text-white">
+                      <span className="text-lg font-bold text-white">
                         {selectedProperty.floors} Levels
                       </span>
                     </div>

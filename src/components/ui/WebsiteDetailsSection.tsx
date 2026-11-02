@@ -7,7 +7,6 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   ArrowRight,
-  ArrowUpRight,
   X,
 } from "lucide-react";
 import { scifiAudio } from "@/lib/audio";
@@ -234,7 +233,7 @@ export function WebsiteDetailsSection({
 
   // Split layout elements
   const leftPanelRef = useRef<HTMLDivElement>(null);
-  const galleryTrackRef = useRef<HTMLDivElement>(null);
+  const verticalCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const rightColumnContainerRef = useRef<HTMLDivElement>(null);
 
   // Progress and state
@@ -242,28 +241,31 @@ export function WebsiteDetailsSection({
   const [activePropertyIndex, setActivePropertyIndex] = useState<number>(0);
   const [selectedDossier, setSelectedDossier] = useState<PropertyDossier | null>(null);
 
+  // Automatic entrance animation tracking (triggers automatically on section entry without scrolling)
+  const autoEntranceProxy = useRef<{ value: number }>({ value: 0 });
+  const autoEntranceDone = useRef<boolean>(false);
+  const hasUserScrolled = useRef<boolean>(false);
+
   // --------------------------------------------------------------------------
   // UNIFIED STICKY SCROLL ANIMATION CORE
-  // 1. (p = 0.00 -> 0.18): 3 images animate UPWARD from the bottom while section is pinned.
-  // 2. (p = 0.18 -> 0.24): 3 images hold in place filling 100% of the screen width.
-  // 3. (p = 0.24 -> 0.38): 3 images slide rightward into right column; Left panel reveals.
-  // 4. (p = 0.38 -> 0.90): Right column vertically scrubs through the 6 properties.
+  // 1. Entrance: 3 images animate UPWARD from the bottom automatically without requiring scrolling.
+  // 2. (p = 0.00 -> 0.16): 3 images hold in place filling 100% of the screen width.
+  // 3. (p = 0.16 -> 0.36): 3 images slide rightward into right column; Left panel reveals.
+  // 4. (p = 0.36 -> 0.90): Right column vertically scrubs through the 6 properties.
   // 5. (p = 0.90 -> 1.00): Animation finishes cleanly.
   // Past p = 1.00: Section naturally unpins and scrolls forward into the next section (Footer).
   // --------------------------------------------------------------------------
   const renderUnifiedAnimation = useCallback((p: number) => {
     const numCards = FEATURED_PROPERTIES.length;
 
-    if (p <= 0.18) {
-      // PHASE 1: 3 IMAGES ANIMATE UPWARD FROM THE BOTTOM WHILE SECTION IS FIXED
-      const tEnter = Math.min(1.0, Math.max(0, p / 0.18));
-      const easeEnter = 1 - Math.pow(1 - tEnter, 3); // Cubic ease-out
-      const translateY = (1 - easeEnter) * 100;
-
+    if (p <= 0.16) {
+      // PHASE 1: 3 FULL-WIDTH IMAGES IN PLACE (Entered automatically on section visit)
       if (bannerContainerRef.current) {
-        bannerContainerRef.current.style.opacity = Math.min(1.0, tEnter * 3.5).toFixed(3);
-        bannerContainerRef.current.style.transform = `translate3d(0, ${translateY.toFixed(2)}%, 0)`;
-        bannerContainerRef.current.style.pointerEvents = tEnter > 0.4 ? "auto" : "none";
+        if (autoEntranceDone.current || hasUserScrolled.current) {
+          bannerContainerRef.current.style.opacity = "1";
+          bannerContainerRef.current.style.transform = "translate3d(0, 0, 0)";
+          bannerContainerRef.current.style.pointerEvents = "auto";
+        }
       }
 
       if (leftPanelRef.current) {
@@ -278,57 +280,57 @@ export function WebsiteDetailsSection({
       }
 
       setActivePropertyIndex(0);
-      if (galleryTrackRef.current) {
-        galleryTrackRef.current.style.transform = "translate3d(0, 0, 0)";
+      for (let idx = 0; idx < numCards; idx++) {
+        const cardEl = verticalCardRefs.current[idx];
+        if (!cardEl) continue;
+        if (idx === 0) {
+          cardEl.style.transform = "translate3d(0, 0, 0)";
+          cardEl.style.opacity = "1";
+          cardEl.style.pointerEvents = "auto";
+        } else {
+          cardEl.style.transform = "translate3d(0, 102%, 0)";
+          cardEl.style.opacity = "0";
+          cardEl.style.pointerEvents = "none";
+        }
       }
-    } else if (p <= 0.38) {
-      // PHASE 2: HOLD & TRANSITION FROM 3 FULL-WIDTH IMAGES TO SPLIT LAYOUT
-      if (p <= 0.24) {
-        // Hold 3 images fully displayed edge-to-edge
-        if (bannerContainerRef.current) {
-          bannerContainerRef.current.style.opacity = "1";
-          bannerContainerRef.current.style.transform = "translate3d(0, 0, 0)";
-          bannerContainerRef.current.style.pointerEvents = "auto";
-        }
-        if (leftPanelRef.current) {
-          leftPanelRef.current.style.opacity = "0";
-          leftPanelRef.current.style.transform = "translate3d(-60px, 0, 0)";
-          leftPanelRef.current.style.pointerEvents = "none";
-        }
-        if (rightColumnContainerRef.current) {
-          rightColumnContainerRef.current.style.opacity = "0";
-          rightColumnContainerRef.current.style.pointerEvents = "none";
-        }
-        setActivePropertyIndex(0);
-      } else {
-        // Shift rightward and reveal left editorial panel
-        const tShift = (p - 0.24) / 0.14;
-        const easeShift = tShift * tShift * (3 - 2 * tShift);
+    } else if (p <= 0.36) {
+      // PHASE 2: SMOOTH SHIFT RIGHTWARD AND REVEAL LEFT EDITORIAL PANEL
+      const tShift = (p - 0.16) / 0.20;
+      const easeShift = tShift * tShift * (3 - 2 * tShift);
 
-        if (bannerContainerRef.current) {
-          bannerContainerRef.current.style.opacity = (1 - easeShift * 0.95).toFixed(3);
-          bannerContainerRef.current.style.transform = `translate3d(${(easeShift * 48).toFixed(2)}vw, 0, 0)`;
-          bannerContainerRef.current.style.pointerEvents = easeShift > 0.8 ? "none" : "auto";
-        }
+      if (bannerContainerRef.current) {
+        bannerContainerRef.current.style.opacity = (1 - easeShift * 0.95).toFixed(3);
+        bannerContainerRef.current.style.transform = `translate3d(${(easeShift * 48).toFixed(2)}vw, 0, 0)`;
+        bannerContainerRef.current.style.pointerEvents = easeShift > 0.8 ? "none" : "auto";
+      }
 
-        if (leftPanelRef.current) {
-          leftPanelRef.current.style.opacity = easeShift.toFixed(3);
-          leftPanelRef.current.style.transform = `translate3d(${((-1 + easeShift) * 60).toFixed(2)}px, 0, 0)`;
-          leftPanelRef.current.style.pointerEvents = easeShift > 0.5 ? "auto" : "none";
-        }
+      if (leftPanelRef.current) {
+        leftPanelRef.current.style.opacity = easeShift.toFixed(3);
+        leftPanelRef.current.style.transform = `translate3d(${((-1 + easeShift) * 60).toFixed(2)}px, 0, 0)`;
+        leftPanelRef.current.style.pointerEvents = easeShift > 0.5 ? "auto" : "none";
+      }
 
-        if (rightColumnContainerRef.current) {
-          rightColumnContainerRef.current.style.opacity = easeShift.toFixed(3);
-          rightColumnContainerRef.current.style.pointerEvents = easeShift > 0.5 ? "auto" : "none";
-        }
+      if (rightColumnContainerRef.current) {
+        rightColumnContainerRef.current.style.opacity = easeShift.toFixed(3);
+        rightColumnContainerRef.current.style.pointerEvents = easeShift > 0.5 ? "auto" : "none";
+      }
 
-        setActivePropertyIndex(0);
-        if (galleryTrackRef.current) {
-          galleryTrackRef.current.style.transform = "translate3d(0, 0, 0)";
+      setActivePropertyIndex(0);
+      for (let idx = 0; idx < numCards; idx++) {
+        const cardEl = verticalCardRefs.current[idx];
+        if (!cardEl) continue;
+        if (idx === 0) {
+          cardEl.style.transform = "translate3d(0, 0, 0)";
+          cardEl.style.opacity = "1";
+          cardEl.style.pointerEvents = "auto";
+        } else {
+          cardEl.style.transform = "translate3d(0, 102%, 0)";
+          cardEl.style.opacity = "0";
+          cardEl.style.pointerEvents = "none";
         }
       }
     } else {
-      // PHASE 3: RIGHT-SIDE VERTICAL SCRUB & LIVE DATA MATRIX (p: 0.38 -> 1.00)
+      // PHASE 3: RIGHT-SIDE VERTICAL SCRUB & LIVE DATA MATRIX (p: 0.36 -> 1.00)
       if (bannerContainerRef.current) {
         bannerContainerRef.current.style.opacity = "0";
         bannerContainerRef.current.style.pointerEvents = "none";
@@ -346,20 +348,86 @@ export function WebsiteDetailsSection({
       }
 
       // Normalized scrub progress across the 6 vertical cards
-      const scrubT = Math.min(1.0, Math.max(0, (p - 0.38) / (0.90 - 0.38)));
+      const scrubT = Math.min(1.0, Math.max(0, (p - 0.36) / (0.90 - 0.36)));
+      const floatIndex = scrubT * (numCards - 1);
       const currentIdx = Math.min(
         numCards - 1,
-        Math.max(0, Math.floor(scrubT * numCards))
+        Math.max(0, Math.round(floatIndex))
       );
       setActivePropertyIndex(currentIdx);
 
-      // Smooth vertical scrub translation
-      if (galleryTrackRef.current) {
-        const totalTravelPercentage = (numCards - 1) * 100;
-        const currentYPercentage = scrubT * totalTravelPercentage;
-        galleryTrackRef.current.style.transform = `translate3d(0, -${currentYPercentage.toFixed(2)}%, 0)`;
+      // Seamless stacked image transition: each new image smoothly transitions directly over the previous one
+      for (let idx = 0; idx < numCards; idx++) {
+        const cardEl = verticalCardRefs.current[idx];
+        if (!cardEl) continue;
+
+        if (idx === 0) {
+          // Base card stays in place
+          cardEl.style.transform = "translate3d(0, 0, 0)";
+          cardEl.style.opacity = "1";
+          cardEl.style.pointerEvents = "auto";
+        } else {
+          if (floatIndex < idx - 1) {
+            // Waiting below
+            cardEl.style.transform = "translate3d(0, 102%, 0)";
+            cardEl.style.opacity = "0";
+            cardEl.style.pointerEvents = "none";
+          } else if (floatIndex <= idx) {
+            // Actively sliding up from bottom directly OVER previous card
+            const t = floatIndex - (idx - 1);
+            const easeT = t * t * (3 - 2 * t);
+            const translateY = (1 - easeT) * 100;
+            cardEl.style.transform = `translate3d(0, ${translateY.toFixed(2)}%, 0)`;
+            cardEl.style.opacity = "1";
+            cardEl.style.pointerEvents = "auto";
+          } else {
+            // Fully in place
+            cardEl.style.transform = "translate3d(0, 0, 0)";
+            cardEl.style.opacity = "1";
+            cardEl.style.pointerEvents = "auto";
+          }
+        }
       }
     }
+  }, []);
+
+  // --------------------------------------------------------------------------
+  // AUTOMATIC UPWARD ENTRANCE ANIMATION (TRIGGERED UPON ENTERING SECTION)
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    scifiAudio.playHoloBeep(850, 0.08);
+
+    const autoTween = gsap.fromTo(
+      autoEntranceProxy.current,
+      { value: 0 },
+      {
+        value: 1,
+        duration: 1.15,
+        ease: "power3.out",
+        delay: 0.05,
+        onUpdate: () => {
+          if (!hasUserScrolled.current && bannerContainerRef.current) {
+            const t = autoEntranceProxy.current.value;
+            const translateY = (1 - t) * 100;
+            bannerContainerRef.current.style.transform = `translate3d(0, ${translateY.toFixed(2)}%, 0)`;
+            bannerContainerRef.current.style.opacity = Math.min(1.0, t * 1.8).toFixed(3);
+            bannerContainerRef.current.style.pointerEvents = t > 0.4 ? "auto" : "none";
+          }
+        },
+        onComplete: () => {
+          autoEntranceDone.current = true;
+          if (!hasUserScrolled.current && bannerContainerRef.current) {
+            bannerContainerRef.current.style.transform = "translate3d(0, 0, 0)";
+            bannerContainerRef.current.style.opacity = "1";
+            bannerContainerRef.current.style.pointerEvents = "auto";
+          }
+        },
+      }
+    );
+
+    return () => {
+      autoTween.kill();
+    };
   }, []);
 
   // --------------------------------------------------------------------------
@@ -383,6 +451,11 @@ export function WebsiteDetailsSection({
         Math.max((scrollTop - trackTop) / maxScroll, 0),
         1
       );
+
+      if (rawProgress > 0.005) {
+        hasUserScrolled.current = true;
+        autoEntranceDone.current = true;
+      }
 
       // GSAP power2.out interpolation delivers butter-smooth momentum
       gsap.to(progressProxy.current, {
@@ -419,8 +492,8 @@ export function WebsiteDetailsSection({
     const maxScroll = trackHeight - clientHeight;
     if (maxScroll <= 0) return;
 
-    // Convert property index to target scroll progress (sits within Phase 3 range: 0.38 -> 0.90)
-    const startP = 0.38;
+    // Convert property index to target scroll progress (sits within Phase 3 range: 0.36 -> 0.90)
+    const startP = 0.36;
     const endP = 0.88;
     const targetP = startP + (index / (FEATURED_PROPERTIES.length - 1)) * (endP - startP);
     const targetScrollTop = track.offsetTop + targetP * maxScroll;
@@ -467,15 +540,7 @@ export function WebsiteDetailsSection({
                 alt={FEATURED_PROPERTIES[0].title}
                 className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#012169]/85 via-black/20 to-transparent flex flex-col justify-between p-6 sm:p-10 text-white">
-                <div className="flex items-center justify-between">
-                  <span className="px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-[0.2em] bg-[#012169]/80 backdrop-blur-md border border-white/25">
-                    {FEATURED_PROPERTIES[0].category}
-                  </span>
-                  <span className="text-xs font-mono font-bold text-white bg-black/60 px-3 py-1 rounded-full backdrop-blur-md border border-white/15">
-                    {FEATURED_PROPERTIES[0].valuation}
-                  </span>
-                </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#012169]/85 via-black/20 to-transparent flex flex-col justify-end p-6 sm:p-10 text-white">
                 <div>
                   <h3 className="text-2xl sm:text-4xl font-black uppercase leading-tight tracking-tight text-white">
                     {FEATURED_PROPERTIES[0].name}
@@ -498,15 +563,7 @@ export function WebsiteDetailsSection({
                 alt={FEATURED_PROPERTIES[1].title}
                 className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#012169]/85 via-black/20 to-transparent flex flex-col justify-between p-6 sm:p-10 text-white">
-                <div className="flex items-center justify-between">
-                  <span className="px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-[0.2em] bg-[#012169]/80 backdrop-blur-md border border-white/25">
-                    {FEATURED_PROPERTIES[1].category}
-                  </span>
-                  <span className="text-xs font-mono font-bold text-white bg-black/60 px-3 py-1 rounded-full backdrop-blur-md border border-white/15">
-                    {FEATURED_PROPERTIES[1].valuation}
-                  </span>
-                </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#012169]/85 via-black/20 to-transparent flex flex-col justify-end p-6 sm:p-10 text-white">
                 <div>
                   <h3 className="text-2xl sm:text-4xl font-black uppercase leading-tight tracking-tight text-white">
                     {FEATURED_PROPERTIES[1].name}
@@ -529,15 +586,7 @@ export function WebsiteDetailsSection({
                 alt={FEATURED_PROPERTIES[2].title}
                 className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#012169]/85 via-black/20 to-transparent flex flex-col justify-between p-6 sm:p-10 text-white">
-                <div className="flex items-center justify-between">
-                  <span className="px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-[0.2em] bg-[#012169]/80 backdrop-blur-md border border-white/25">
-                    {FEATURED_PROPERTIES[2].category}
-                  </span>
-                  <span className="text-xs font-mono font-bold text-white bg-black/60 px-3 py-1 rounded-full backdrop-blur-md border border-white/15">
-                    {FEATURED_PROPERTIES[2].valuation}
-                  </span>
-                </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#012169]/85 via-black/20 to-transparent flex flex-col justify-end p-6 sm:p-10 text-white">
                 <div>
                   <h3 className="text-2xl sm:text-4xl font-black uppercase leading-tight tracking-tight text-white">
                     {FEATURED_PROPERTIES[2].name}
@@ -550,67 +599,116 @@ export function WebsiteDetailsSection({
           {/* ==================================================================
               STAGE 2 & 3: EDITORIAL SPLIT VIEW (Kharkiv Modernism Architecture)
               ================================================================== */}
-          <div className="relative w-full h-full flex flex-col justify-between px-4 sm:px-8 lg:px-14 py-4 sm:py-6 z-20">
+          <div className="relative w-full h-full flex flex-col justify-center px-4 sm:px-8 lg:px-12 py-2 sm:py-3 z-20">
             {/* Center Stage: Two-Column Editorial Layout */}
-            <div className="relative w-full flex-1 flex flex-col lg:flex-row items-center justify-between gap-6 sm:gap-10 my-auto">
+            <div className="relative w-full flex flex-col lg:flex-row items-center justify-between gap-6 sm:gap-10 my-auto">
               {/* ----------------------------------------------------------------
                   LEFT COLUMN: EDITORIAL IDENTITY & NAVIGATION MATRIX
                   ---------------------------------------------------------------- */}
               <div
                 ref={leftPanelRef}
                 style={{ opacity: 0 }}
-                className="w-full lg:w-[48%] flex flex-col justify-between h-full py-4 sm:py-8 lg:pr-8"
+                className="w-full lg:w-[45%] flex flex-col justify-center h-auto py-1 sm:py-2 lg:pr-6 select-none"
               >
-                {/* Top Section: Title & Dynamic Counter */}
-                <div>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h1 className="text-4xl sm:text-6xl lg:text-7xl xl:text-8xl font-black uppercase tracking-tight text-[#012169] leading-[0.92]">
-                        Commercial <br />
-                        <span className="text-[#A10728]">Archives.</span>
-                      </h1>
-                    </div>
+                {/* Top Section: Title & Synchronized Property Narrative */}
+                <div className="space-y-2.5 sm:space-y-3.5">
+                  <div>
+                    <h1 className="text-3xl sm:text-4xl lg:text-[42px] xl:text-[50px] font-black uppercase tracking-tight text-[#012169] leading-[0.92]">
+                      Commercial <br />
+                      <span className="text-[#A10728]">Archives.</span>
+                    </h1>
+                  </div>
+
+                  {/* Synchronized Content Transition: Title, Description & Key Details */}
+                  <div className="relative min-h-[110px] sm:min-h-[125px]">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={activeProperty.id}
+                        initial={{ opacity: 0, y: 14 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -14 }}
+                        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                        className="space-y-2 sm:space-y-2.5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#A10728] animate-pulse" />
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] text-[#A10728]">
+                            {activeProperty.category}
+                          </span>
+                        </div>
+
+                        <h2 className="text-lg sm:text-xl lg:text-2xl font-black uppercase tracking-tight text-[#012169] leading-tight">
+                          {activeProperty.title}
+                        </h2>
+
+                        <p className="text-xs sm:text-[13px] text-[#012169]/80 leading-relaxed font-medium line-clamp-2 sm:line-clamp-3 max-w-xl">
+                          {activeProperty.leadText}
+                        </p>
+
+                        {/* Synchronized Property Details */}
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-0.5">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-[#012169]/10 text-[#012169] border border-[#012169]/15">
+                            {activeProperty.valuation}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-[#012169]/10 text-[#012169] border border-[#012169]/15">
+                            {activeProperty.sqft}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-[#A10728]/10 text-[#A10728] border border-[#A10728]/20">
+                            {activeProperty.tenancy}
+                          </span>
+                        </div>
+                      </motion.div>
+                    </AnimatePresence>
                   </div>
 
                   {/* Action CTA: Explore Dossier */}
-                  <div className="mt-6 sm:mt-10">
+                  <div className="pt-0.5">
                     <button
                       onClick={() => {
                         scifiAudio.playHoloBeep(920, 0.1);
                         setSelectedDossier(activeProperty);
                       }}
-                      className="group inline-flex items-center gap-3 text-sm sm:text-base font-black uppercase tracking-[0.16em] text-[#012169] hover:text-[#A10728] transition-colors cursor-pointer border-b-2 border-[#012169]/20 hover:border-[#A10728] pb-1.5"
+                      className="group inline-flex items-center gap-2.5 text-xs sm:text-[13px] font-black uppercase tracking-[0.16em] text-[#012169] hover:text-[#A10728] transition-colors cursor-pointer border-b-2 border-[#012169]/20 hover:border-[#A10728] pb-1"
                     >
                       <span>Explore Dossier</span>
-                      <ArrowRight className="h-4 w-4 text-[#A10728] transition-transform duration-300 group-hover:translate-x-1.5" />
+                      <ArrowRight className="h-3.5 w-3.5 text-[#A10728] transition-transform duration-300 group-hover:translate-x-1.5" />
                     </button>
                   </div>
                 </div>
 
                 {/* Middle Section: [06] Featured & Name Matrix (Reference Layout) */}
-                <div className="mt-6 sm:mt-12 pt-6 sm:pt-8 border-t border-[#012169]/15">
-                  <div className="grid grid-cols-2 gap-4 sm:gap-8">
+                <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#012169]/15">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-6">
                     <div>
-                      <span className="text-xs sm:text-sm font-bold uppercase tracking-[0.2em] text-[#012169]/50 block mb-2">
-                        [{FEATURED_PROPERTIES.length.toString().padStart(2, "0")}] Featured:
+                      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-[#012169]/50 block mb-1.5">
+                        [{activeProperty.index}] Featured:
                       </span>
-                      <p className="text-xs sm:text-sm font-medium text-[#012169]/70 leading-relaxed max-w-[200px]">
-                        Prime trophy towers, enterprise tech campuses, and intermodal distribution nodes.
-                      </p>
+                      <AnimatePresence mode="wait">
+                        <motion.p
+                          key={activeProperty.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.25 }}
+                          className="text-[11px] sm:text-xs font-medium text-[#012169]/70 leading-relaxed max-w-[210px] line-clamp-3"
+                        >
+                          {activeProperty.name} — {activeProperty.description.slice(0, 95)}...
+                        </motion.p>
+                      </AnimatePresence>
                     </div>
 
                     <div>
-                      <span className="text-xs sm:text-sm font-bold uppercase tracking-[0.2em] text-[#012169]/50 block mb-2">
+                      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-[#012169]/50 block mb-1.5">
                         Name:
                       </span>
-                      <ul className="space-y-1.5">
+                      <ul className="space-y-1 sm:space-y-1.5">
                         {FEATURED_PROPERTIES.map((item, idx) => {
                           const isActive = idx === activePropertyIndex;
                           return (
                             <li
                               key={item.id}
                               onClick={() => handleJumpToProperty(idx)}
-                              className={`text-xs sm:text-sm uppercase tracking-wider cursor-pointer transition-all duration-300 flex items-center gap-2 ${
+                              className={`text-[11px] sm:text-xs uppercase tracking-wider cursor-pointer transition-all duration-300 flex items-center gap-1.5 ${
                                 isActive
                                   ? "font-black text-[#012169] translate-x-1"
                                   : "font-semibold text-[#012169]/40 hover:text-[#012169]/80"
@@ -630,65 +728,45 @@ export function WebsiteDetailsSection({
               </div>
 
               {/* ----------------------------------------------------------------
-                  RIGHT COLUMN: VERTICAL GALLERY SCRUB (Reference: Vertical Swapping)
+                  RIGHT COLUMN: SEAMLESS STACKED CARD GALLERY (Zero Gaps, Prominent Size)
+                  Each new image smoothly transitions directly over the previous one
                   ---------------------------------------------------------------- */}
               <div
                 ref={rightColumnContainerRef}
                 style={{ opacity: 0 }}
-                className="w-full lg:w-[50%] h-[68vh] sm:h-[76vh] lg:h-[84vh] relative overflow-hidden rounded-[24px] sm:rounded-[32px]"
+                className="w-full lg:w-[53%] h-[68vh] sm:h-[74vh] lg:h-[78vh] xl:h-[80vh] relative overflow-hidden rounded-[26px] sm:rounded-[34px] border-[2px] border-[#012169]/20 bg-[#0E1B33] shadow-[0_25px_65px_rgba(1,33,105,0.25)] select-none"
               >
-                {/* Scroll Track moving vertically inside the window */}
-                <div
-                  ref={galleryTrackRef}
-                  className="w-full h-full relative transition-transform duration-75 ease-out will-change-transform"
-                >
-                  {FEATURED_PROPERTIES.map((prop, idx) => (
-                    <div
-                      key={prop.id}
-                      onClick={() => {
-                        scifiAudio.playHoloBeep(920, 0.1);
-                        setSelectedDossier(prop);
-                      }}
-                      style={{
-                        top: `${idx * 100}%`,
-                      }}
-                      className="absolute inset-0 w-full h-full flex flex-col justify-center items-center p-2 sm:p-4 cursor-pointer group"
-                    >
-                      {/* Main Card Media Container */}
-                      <div className="relative w-full h-full max-w-lg aspect-[3/4] sm:aspect-[4/5] rounded-[22px] sm:rounded-[28px] overflow-hidden border-[2px] border-[#012169]/20 bg-[#0E1B33] shadow-[0_25px_60px_rgba(1,33,105,0.22)] group-hover:shadow-[0_30px_75px_rgba(161,7,40,0.35)] group-hover:border-[#A10728] transition-all duration-500">
-                        <img
-                          src={prop.image}
-                          alt={prop.title}
-                          className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                        />
+                {FEATURED_PROPERTIES.map((prop, idx) => (
+                  <div
+                    key={prop.id}
+                    ref={(el) => {
+                      verticalCardRefs.current[idx] = el;
+                    }}
+                    onClick={() => {
+                      scifiAudio.playHoloBeep(920, 0.1);
+                      setSelectedDossier(prop);
+                    }}
+                    style={{
+                      zIndex: 10 + idx,
+                      willChange: "transform, opacity",
+                    }}
+                    className="absolute inset-0 w-full h-full overflow-hidden cursor-pointer group shadow-[0_-25px_50px_rgba(1,33,105,0.35)]"
+                  >
+                    {/* Main Image Frame (Full Size, Edge-to-Edge Without Gaps) */}
+                    <img
+                      src={prop.image}
+                      alt={prop.title}
+                      className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    />
 
-                        {/* Top Overlay Badge */}
-                        <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
-                          <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.18em] bg-[#012169]/85 text-[#FCF8F3] backdrop-blur-md border border-white/20">
-                            {prop.category}
-                          </span>
-
-                          <span className="px-3 py-1 rounded-full text-[10px] font-mono font-bold text-white bg-black/60 backdrop-blur-md border border-white/15">
-                            {prop.valuation}
-                          </span>
-                        </div>
-
-                        {/* Bottom Overlay Info Banner */}
-                        <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6 bg-gradient-to-t from-[#012169]/90 via-[#012169]/60 to-transparent flex items-end justify-between z-10 text-white">
-                          <div className="max-w-[80%]">
-                            <h3 className="text-xl sm:text-2xl font-black uppercase text-white leading-tight">
-                              {prop.title}
-                            </h3>
-                          </div>
-
-                          <div className="h-9 w-9 rounded-full bg-white/20 group-hover:bg-[#A10728] text-white flex items-center justify-center transition-colors shadow-md">
-                            <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                          </div>
-                        </div>
-                      </div>
+                    {/* Bottom Overlay Info Banner */}
+                    <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7 bg-gradient-to-t from-[#012169]/95 via-[#012169]/55 to-transparent z-10 text-white">
+                      <h3 className="text-xl sm:text-3xl font-black uppercase text-white leading-tight">
+                        {prop.title}
+                      </h3>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -769,7 +847,7 @@ export function WebsiteDetailsSection({
                         <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
                           {spec.label}
                         </span>
-                        <span className="text-base font-mono font-bold text-[#FCF8F3] truncate">
+                        <span className="text-base font-bold text-[#FCF8F3] truncate">
                           {spec.value}
                         </span>
                       </div>

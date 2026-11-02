@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 /* ========================================================
-   Universal Typography: Condor Medium Condensed Italic (loaded via next/font/local in layout.tsx)
+   Universal Typography: Barlow Condensed (loaded via next/font/google in layout.tsx)
    ======================================================== */
 :root {
-  --font-site: var(--font-condor), "Arial Narrow", sans-serif;
+  --font-site: var(--font-barlow), "Arial Narrow", sans-serif;
 
   /* Australian Flag Palette: Flag Blue (#012169), Flag Red (#E4002B) & Clean White */
   --off-white: #F7F9FC;

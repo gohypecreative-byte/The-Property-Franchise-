@@ -101,10 +101,10 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
         {/* Title with parallax drift */}
         <motion.h1
           style={{ y: titleY }}
-          className="mt-6 font-medium leading-[0.9] tracking-[-0.055em] text-[clamp(52px,9vw,150px)] md:mt-8"
+          className="mt-6 font-medium leading-[0.9] tracking-[-0.01em] text-[clamp(52px,9vw,150px)] md:mt-8"
         >
           {["Let's", "talk."].map((line, i) => (
-            <span key={line} className="block overflow-hidden pb-[0.06em]">
+            <span key={line} className="-mx-[0.15em] block overflow-hidden px-[0.15em] pb-[0.06em]">
               <motion.span
                 className="block"
                 initial={{ y: "110%" }}
@@ -170,7 +170,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
                   className="border-t border-[#012169]/20 pt-8"
                 >
                   <p className="text-[11px] uppercase tracking-[0.14em] text-[#E4002B]">Message received</p>
-                  <h2 className="mt-3 text-4xl font-medium tracking-[-0.04em] md:text-6xl">
+                  <h2 className="mt-3 text-4xl font-medium tracking-[-0.01em] md:text-6xl">
                     Thank you{form.fullName ? `, ${form.fullName.split(" ")[0]}` : ""}.
                   </h2>
                   <p className="mt-4 max-w-md text-base text-[#012169]/70">

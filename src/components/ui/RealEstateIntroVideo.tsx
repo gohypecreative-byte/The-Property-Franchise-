@@ -98,7 +98,7 @@ export function RealEstateIntroVideo({
     // White fade + overlay sit inside the visible frame
     const frameH = vh - top - bottom;
     if (fadeRef.current) {
-      fadeRef.current.style.top = `${top.toFixed(1)}px`;
+      fadeRef.current.style.top = `${(top - 2).toFixed(1)}px`;
       fadeRef.current.style.height = `${(frameH * 0.5).toFixed(1)}px`;
       fadeRef.current.style.opacity = (1 - p).toFixed(3);
     }
@@ -299,61 +299,16 @@ export function RealEstateIntroVideo({
                   ref={titleRef}
                   className="absolute inset-x-0 top-[84px] sm:top-[104px] z-10 px-4 sm:px-8 will-change-transform"
                 >
-                  <div className="overflow-hidden text-center">
+                  <div className="-mx-[0.15em] overflow-hidden px-[0.15em] text-center">
                     <motion.h1
                       initial={{ y: "105%" }}
                       animate={{ y: "0%" }}
                       transition={{ duration: 1.1, delay: 0.7, ease: EASE }}
-                      className="whitespace-nowrap text-[clamp(26px,6.4vw,124px)] font-semibold uppercase leading-[0.95] tracking-[-0.045em] text-[#012169]"
+                      className="whitespace-nowrap text-[clamp(26px,6.4vw,124px)] font-semibold uppercase leading-[0.95] tracking-[-0.01em] text-[#012169]"
                     >
                       {companyName}
                     </motion.h1>
                   </div>
-
-                  <motion.div
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ duration: 0.9, delay: 0.3, ease: EASE }}
-                    className="mt-3 h-px w-full origin-center bg-[#012169]"
-                  />
-
-                  <motion.p
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7, delay: 1.3, ease: EASE }}
-                    className="mt-2 text-center text-[9px] sm:text-[10px] uppercase tracking-[0.14em] text-[#012169]/70"
-                  >
-                    Presented by{" "}
-                    <span className="font-semibold text-[#012169]">
-                      The Property Franchise
-                    </span>
-                    <span className="mx-2 text-[#E4002B]">•</span>
-                    <span className="hidden sm:inline">{tagline}</span>
-                  </motion.p>
-
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.7, delay: 1.5, ease: EASE }}
-                    className="mt-5 sm:mt-7 flex items-start justify-between text-[9px] sm:text-[10px] uppercase tracking-[0.12em] leading-[1.6]"
-                  >
-                    <dl className="grid grid-cols-[auto_auto] gap-x-4 sm:gap-x-6">
-                      <dt className="text-[#012169]/50">Year</dt>
-                      <dd>2026</dd>
-                      <dt className="text-[#012169]/50">Format</dt>
-                      <dd>Brand Film</dd>
-                      <dt className="text-[#012169]/50">Region</dt>
-                      <dd>Australia</dd>
-                    </dl>
-                    <dl className="grid grid-cols-[auto_auto] gap-x-4 sm:gap-x-6 text-right">
-                      <dt className="text-[#012169]/50">Sector</dt>
-                      <dd>Commercial</dd>
-                      <dt className="text-[#012169]/50">Language</dt>
-                      <dd>English</dd>
-                      <dt className="text-[#012169]/50">Runtime</dt>
-                      <dd className="tabular-nums">{formatTime(duration)}</dd>
-                    </dl>
-                  </motion.div>
                 </div>
 
                 {/* ==========================================================

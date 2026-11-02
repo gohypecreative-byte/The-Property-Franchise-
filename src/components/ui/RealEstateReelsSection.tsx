@@ -851,7 +851,7 @@ export function RealEstateReelsSection({
                             {selectedProperty.categoryLabel}
                           </span>
 
-                          <h3 className="mt-4 text-3xl sm:text-[40px] font-bold leading-[1.05] tracking-[-0.03em] text-[#012169]">
+                          <h3 className="mt-4 text-3xl sm:text-[40px] font-bold leading-[1.05] tracking-[-0.01em] text-[#012169]">
                             {selectedProperty.title}
                           </h3>
 

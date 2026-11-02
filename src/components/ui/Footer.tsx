@@ -109,7 +109,7 @@ export function Footer({ scrollContainerRef, onNavigate }: FooterProps) {
                     className="group grid w-full grid-cols-[48px_1fr_auto] items-baseline gap-4 border-t border-[#012169]/20 py-4 text-left md:grid-cols-[64px_1fr_160px_auto] md:py-5 cursor-pointer"
                   >
                     <span className="text-[11px] uppercase tracking-[0.14em] text-[#012169]/55">{s.index}</span>
-                    <span className="flex items-center gap-3 text-[clamp(26px,3.6vw,52px)] font-medium leading-none tracking-[-0.04em] transition-transform duration-500 group-hover:translate-x-2">
+                    <span className="flex items-center gap-3 text-[clamp(26px,3.6vw,52px)] font-medium leading-none tracking-[-0.01em] transition-transform duration-500 group-hover:translate-x-2">
                       <span className="h-2 w-2 shrink-0 rounded-full bg-[#E4002B] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                       {s.label}
                     </span>
@@ -175,7 +175,7 @@ export function Footer({ scrollContainerRef, onNavigate }: FooterProps) {
             >
               <span>
                 <span className="block text-[11px] uppercase tracking-[0.14em] text-[#012169]/55">Start a conversation</span>
-                <span className="mt-1 block text-2xl font-medium tracking-[-0.03em] group-hover:text-[#E4002B] transition-colors">
+                <span className="mt-1 block text-2xl font-medium tracking-[-0.01em] group-hover:text-[#E4002B] transition-colors">
                   Let&apos;s talk
                 </span>
               </span>

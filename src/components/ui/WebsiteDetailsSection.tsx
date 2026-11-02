@@ -617,8 +617,8 @@ export function WebsiteDetailsSection({
 
               {/* Row 1: title + counter */}
               <div className="flex items-start justify-between gap-6">
-                <h2 className="font-medium leading-[0.9] tracking-[-0.055em] text-[#012169] text-[min(13vw,8vh)] md:text-[min(7.4vw,14vh)]">
-                  <span className="block overflow-hidden pb-[0.06em]">
+                <h2 className="font-medium leading-[0.9] tracking-[-0.01em] text-[#012169] text-[min(13vw,8vh)] md:text-[min(7.4vw,14vh)]">
+                  <span className="-mx-[0.15em] block overflow-hidden px-[0.15em] pb-[0.06em]">
                     <span
                       ref={(el) => {
                         titleLineRefs.current[0] = el;
@@ -628,7 +628,7 @@ export function WebsiteDetailsSection({
                       Commercial
                     </span>
                   </span>
-                  <span className="block overflow-hidden pb-[0.06em]">
+                  <span className="-mx-[0.15em] block overflow-hidden px-[0.15em] pb-[0.06em]">
                     <span
                       ref={(el) => {
                         titleLineRefs.current[1] = el;
@@ -643,7 +643,7 @@ export function WebsiteDetailsSection({
                   ref={(el) => {
                     metaRefs.current[0] = el;
                   }}
-                  className="pt-2 text-[11px] sm:text-xs tabular-nums tracking-[0.08em] text-[#012169]"
+                  className="pt-2 text-sm sm:text-base tabular-nums tracking-[0.08em] text-[#012169]"
                 >
                   {activeIndex + 1}—{total}
                 </div>
@@ -660,7 +660,7 @@ export function WebsiteDetailsSection({
                   {/* Learn more rule */}
                   <button
                     onClick={() => openDossier(active)}
-                    className="group flex w-full max-w-[320px] items-center justify-between border-b border-[#012169]/40 pb-2 text-[11px] sm:text-xs uppercase tracking-[0.1em] text-[#012169] hover:border-[#E4002B] hover:text-[#E4002B] transition-colors cursor-pointer"
+                    className="group flex w-full max-w-[360px] items-center justify-between border-b border-[#012169]/40 pb-2 text-sm sm:text-base uppercase tracking-[0.1em] text-[#012169] hover:border-[#E4002B] hover:text-[#E4002B] transition-colors cursor-pointer"
                   >
                     Learn More
                     <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
@@ -674,12 +674,12 @@ export function WebsiteDetailsSection({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.45, ease: EASE }}
-                      className="mt-[min(28px,3vh)] max-w-[460px]"
+                      className="mt-[min(28px,3vh)] max-w-[560px]"
                     >
-                      <h3 className="text-[clamp(16px,2.6vh,24px)] font-semibold leading-tight tracking-[-0.02em] text-[#012169]">
+                      <h3 className="text-[clamp(24px,3.8vh,40px)] font-semibold leading-tight tracking-[-0.02em] text-[#012169]">
                         {active.title}
                       </h3>
-                      <p className="mt-2 line-clamp-3 text-[clamp(12px,1.7vh,14px)] leading-relaxed text-[#012169]/70">
+                      <p className="mt-2 line-clamp-3 text-[clamp(16px,2.4vh,21px)] leading-relaxed text-[#012169]/70">
                         {active.leadText}
                       </p>
                     </motion.div>
@@ -691,7 +691,7 @@ export function WebsiteDetailsSection({
                   ref={(el) => {
                     metaRefs.current[2] = el;
                   }}
-                  className="hidden md:flex gap-8 text-[11px] sm:text-xs tracking-[0.04em]"
+                  className="hidden md:flex gap-8 text-sm lg:text-base tracking-[0.04em]"
                 >
                   <span className="text-[#012169]">
                     [{String(total).padStart(2, "0")}] Featured:
@@ -730,7 +730,7 @@ export function WebsiteDetailsSection({
                 ref={(el) => {
                   metaRefs.current[3] = el;
                 }}
-                className="mt-4 flex items-end justify-between text-[10px] sm:text-[11px] tracking-[0.06em] text-[#012169]"
+                className="mt-4 flex items-end justify-between text-xs sm:text-sm tracking-[0.06em] text-[#012169]"
               >
                 <span>The Property Franchise + Commercial Network</span>
                 <span>©2026</span>
@@ -792,7 +792,7 @@ export function WebsiteDetailsSection({
                         <span className="h-1.5 w-1.5 rounded-full bg-[#E4002B]" />
                         {selectedDossier.category}
                       </span>
-                      <h3 className="mt-4 text-3xl sm:text-[38px] font-bold leading-[1.05] tracking-[-0.03em]">
+                      <h3 className="mt-4 text-3xl sm:text-[38px] font-bold leading-[1.05] tracking-[-0.01em]">
                         {selectedDossier.title}
                       </h3>
                       <p className="mt-3 flex items-center gap-1.5 text-sm text-[#012169]/60">

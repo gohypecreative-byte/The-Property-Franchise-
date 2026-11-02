@@ -244,9 +244,9 @@ export function HeroBridge({
               <p className="mb-5 text-[11px] uppercase tracking-[0.16em] text-white/60">
                 Commercial property franchise network
               </p>
-              <h1 className="font-semibold leading-[0.92] tracking-[-0.045em] text-[clamp(3.2rem,10vw,10rem)]">
+              <h1 className="font-semibold leading-[0.92] tracking-[-0.01em] text-[clamp(3.2rem,10vw,10rem)]">
                 {["The Property", "Franchise"].map((line, i) => (
-                  <span key={line} className="block overflow-hidden pb-[0.06em]">
+                  <span key={line} className="-mx-[0.15em] block overflow-hidden px-[0.15em] pb-[0.06em]">
                     <motion.span
                       className="block"
                       initial={{ y: "115%" }}
@@ -323,7 +323,7 @@ export function HeroBridge({
                         <p className="text-[11px] uppercase tracking-[0.16em] text-[#012169]/60">
                           {current.index} · {current.station}
                         </p>
-                        <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em] md:text-4xl">{current.name}</h2>
+                        <h2 className="mt-1 text-2xl font-semibold tracking-[-0.01em] md:text-4xl">{current.name}</h2>
                         <p className="mt-1 text-xs text-[#012169]/60 md:text-sm">{current.role}</p>
                         <dl className="mt-4 hidden border-b border-[#012169]/15 md:block">
                           {[

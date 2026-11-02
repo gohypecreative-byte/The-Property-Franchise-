@@ -7,6 +7,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   ArrowRight,
+  MapPin,
   X,
 } from "lucide-react";
 import { scifiAudio } from "@/lib/audio";
@@ -603,128 +604,108 @@ export function WebsiteDetailsSection({
             {/* Center Stage: Two-Column Editorial Layout */}
             <div className="relative w-full flex flex-col lg:flex-row items-center justify-between gap-6 sm:gap-10 my-auto">
               {/* ----------------------------------------------------------------
-                  LEFT COLUMN: EDITORIAL IDENTITY & NAVIGATION MATRIX
+                  LEFT COLUMN: EDITORIAL IDENTITY & PROPERTY DOSSIER DETAILS
                   ---------------------------------------------------------------- */}
               <div
                 ref={leftPanelRef}
                 style={{ opacity: 0 }}
-                className="w-full lg:w-[45%] flex flex-col justify-center h-auto py-1 sm:py-2 lg:pr-6 select-none"
+                className="w-full lg:w-[46%] flex flex-col justify-center h-auto py-2 sm:py-3 lg:pr-6 select-none"
               >
-                {/* Top Section: Title & Synchronized Property Narrative */}
-                <div className="space-y-2.5 sm:space-y-3.5">
+                {/* Header: Section Title & Active Property Index */}
+                <div className="flex items-end justify-between border-b border-[#012169]/15 pb-2.5 mb-3">
                   <div>
-                    <h1 className="text-3xl sm:text-4xl lg:text-[42px] xl:text-[50px] font-black uppercase tracking-tight text-[#012169] leading-[0.92]">
+                    <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-black uppercase tracking-tight text-[#012169] leading-[0.92]">
                       Commercial <br />
                       <span className="text-[#A10728]">Archives.</span>
                     </h1>
                   </div>
-
-                  {/* Synchronized Content Transition: Title, Description & Key Details */}
-                  <div className="relative min-h-[110px] sm:min-h-[125px]">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={activeProperty.id}
-                        initial={{ opacity: 0, y: 14 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -14 }}
-                        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                        className="space-y-2 sm:space-y-2.5"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-[#A10728] animate-pulse" />
-                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] text-[#A10728]">
-                            {activeProperty.category}
-                          </span>
-                        </div>
-
-                        <h2 className="text-lg sm:text-xl lg:text-2xl font-black uppercase tracking-tight text-[#012169] leading-tight">
-                          {activeProperty.title}
-                        </h2>
-
-                        <p className="text-xs sm:text-[13px] text-[#012169]/80 leading-relaxed font-medium line-clamp-2 sm:line-clamp-3 max-w-xl">
-                          {activeProperty.leadText}
-                        </p>
-
-                        {/* Synchronized Property Details */}
-                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-0.5">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-[#012169]/10 text-[#012169] border border-[#012169]/15">
-                            {activeProperty.valuation}
-                          </span>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-[#012169]/10 text-[#012169] border border-[#012169]/15">
-                            {activeProperty.sqft}
-                          </span>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-[#A10728]/10 text-[#A10728] border border-[#A10728]/20">
-                            {activeProperty.tenancy}
-                          </span>
-                        </div>
-                      </motion.div>
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Action CTA: Explore Dossier */}
-                  <div className="pt-0.5">
-                    <button
-                      onClick={() => {
-                        scifiAudio.playHoloBeep(920, 0.1);
-                        setSelectedDossier(activeProperty);
-                      }}
-                      className="group inline-flex items-center gap-2.5 text-xs sm:text-[13px] font-black uppercase tracking-[0.16em] text-[#012169] hover:text-[#A10728] transition-colors cursor-pointer border-b-2 border-[#012169]/20 hover:border-[#A10728] pb-1"
-                    >
-                      <span>Explore Dossier</span>
-                      <ArrowRight className="h-3.5 w-3.5 text-[#A10728] transition-transform duration-300 group-hover:translate-x-1.5" />
-                    </button>
+                  <div className="text-right">
+                    <span className="text-xs sm:text-sm font-bold tracking-[0.2em] text-[#A10728] uppercase block">
+                      [{activeProperty.index} / 06]
+                    </span>
+                    <span className="text-[10px] font-semibold text-[#012169]/50 uppercase tracking-widest">
+                      Commercial Assets
+                    </span>
                   </div>
                 </div>
 
-                {/* Middle Section: [06] Featured & Name Matrix (Reference Layout) */}
-                <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#012169]/15">
-                  <div className="grid grid-cols-2 gap-3 sm:gap-6">
+                {/* Synchronized Property Details Content */}
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeProperty.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+                    className="space-y-3"
+                  >
+                    {/* Property Title & Location */}
                     <div>
-                      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-[#012169]/50 block mb-1.5">
-                        [{activeProperty.index}] Featured:
-                      </span>
-                      <AnimatePresence mode="wait">
-                        <motion.p
-                          key={activeProperty.id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.25 }}
-                          className="text-[11px] sm:text-xs font-medium text-[#012169]/70 leading-relaxed max-w-[210px] line-clamp-3"
+                      <h2 className="text-xl sm:text-2xl lg:text-3xl font-black uppercase tracking-tight text-[#012169] leading-tight">
+                        {activeProperty.title}
+                      </h2>
+                      <div className="flex items-center gap-2 mt-1 text-xs sm:text-[13px] font-bold text-[#A10728] uppercase tracking-wider">
+                        <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span>{activeProperty.location}</span>
+                        <span className="text-[#012169]/30">•</span>
+                        <span className="text-[#012169]/70">{activeProperty.tenancy}</span>
+                      </div>
+                    </div>
+
+                    {/* Property Detailed Description */}
+                    <p className="text-xs sm:text-[13px] text-[#012169]/80 leading-relaxed font-medium">
+                      {activeProperty.description}
+                    </p>
+
+                    {/* Property Specifications Grid */}
+                    <div className="grid grid-cols-2 gap-2 sm:gap-2.5 pt-0.5">
+                      {activeProperty.specs.map((spec, sIdx) => (
+                        <div
+                          key={sIdx}
+                          className="p-2 sm:p-2.5 rounded-xl border border-[#012169]/10 bg-[#012169]/[0.03] flex flex-col justify-center"
                         >
-                          {activeProperty.name} — {activeProperty.description.slice(0, 95)}...
-                        </motion.p>
-                      </AnimatePresence>
+                          <span className="text-[10px] text-[#012169]/55 uppercase font-bold tracking-wider truncate">
+                            {spec.label}
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-[#012169] truncate">
+                            {spec.value}
+                          </span>
+                        </div>
+                      ))}
                     </div>
 
+                    {/* Key Architectural Highlights */}
                     <div>
-                      <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-[#012169]/50 block mb-1.5">
-                        Name:
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-[#012169]/50 block mb-1">
+                        Key Architectural Highlights:
                       </span>
-                      <ul className="space-y-1 sm:space-y-1.5">
-                        {FEATURED_PROPERTIES.map((item, idx) => {
-                          const isActive = idx === activePropertyIndex;
-                          return (
-                            <li
-                              key={item.id}
-                              onClick={() => handleJumpToProperty(idx)}
-                              className={`text-[11px] sm:text-xs uppercase tracking-wider cursor-pointer transition-all duration-300 flex items-center gap-1.5 ${
-                                isActive
-                                  ? "font-black text-[#012169] translate-x-1"
-                                  : "font-semibold text-[#012169]/40 hover:text-[#012169]/80"
-                              }`}
-                            >
-                              {isActive && (
-                                <span className="h-1.5 w-1.5 rounded-full bg-[#A10728] animate-pulse" />
-                              )}
-                              <span>{item.name}</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
+                      <div className="flex flex-wrap gap-1.5">
+                        {activeProperty.features.map((feat, fIdx) => (
+                          <span
+                            key={fIdx}
+                            className="px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider bg-[#012169]/5 text-[#012169] border border-[#012169]/10"
+                          >
+                            {feat}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </div>
+
+                    {/* Action CTA: Explore Full Dossier */}
+                    <div className="pt-1.5">
+                      <button
+                        onClick={() => {
+                          scifiAudio.playHoloBeep(920, 0.1);
+                          setSelectedDossier(activeProperty);
+                        }}
+                        className="group inline-flex items-center gap-2.5 text-xs sm:text-[13px] font-black uppercase tracking-[0.16em] text-[#012169] hover:text-[#A10728] transition-colors cursor-pointer border-b-2 border-[#012169]/20 hover:border-[#A10728] pb-1"
+                      >
+                        <span>Explore Full Dossier</span>
+                        <ArrowRight className="h-3.5 w-3.5 text-[#A10728] transition-transform duration-300 group-hover:translate-x-1.5" />
+                      </button>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
               </div>
 
               {/* ----------------------------------------------------------------

@@ -1,62 +1,100 @@
 @import "tailwindcss";
 
 /* ========================================================
-   Condor Med Cond (Marvel Fantastic Four Display Typeface)
-   Supports local OS font installation on Windows,
-   local font files in /fonts/, and universal web fallbacks.
+   Condor Medium Condensed Italic (Sole Universal Typography)
+   Directly matching: Condor Medium Condensed Italic
    ======================================================== */
 @font-face {
-  font-family: 'Condor Med Cond';
-  src: local('Condor Med Cond'),
-       local('CondorMedCond'),
-       local('Condor-MedCond'),
+  font-family: 'Condor Medium Condensed Italic';
+  src: local('Condor Medium Condensed Italic'),
+       local('CondorMediumCondensedItalic'),
+       local('Condor Med Cond Italic'),
+       local('CondorMedCond-Italic'),
+       local('Condor-MediumCondensedItalic'),
+       local('Condor-Italic'),
        local('Condor Medium Condensed'),
+       local('Condor Med Cond'),
        local('Condor'),
+       url('/fonts/CondorMedCond-Italic.woff2') format('woff2'),
        url('/fonts/CondorMedCond.woff2') format('woff2'),
        url('/fonts/CondorMedCond.otf') format('opentype'),
-       url('/fonts/CondorMedCond.ttf') format('truetype'),
-       url('/fonts/condor.otf') format('opentype'),
-       url('/fonts/condor.ttf') format('truetype');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Condor Med Cond';
-  src: local('Condor Med Cond Italic'),
-       local('CondorMedCond-Italic'),
-       local('Condor-Italic'),
-       local('Condor Med Cond'),
-       url('/fonts/CondorMedCond-Italic.woff2') format('woff2'),
-       url('/fonts/CondorMedCond.woff2') format('woff2');
+       url('/fonts/CondorMedCond.ttf') format('truetype');
   font-weight: 100 900;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Condor';
-  src: local('Condor Med Cond'),
-       local('CondorMedCond'),
-       local('Condor-MedCond'),
+  font-family: 'Condor Medium Condensed Italic';
+  src: local('Condor Medium Condensed Italic'),
+       local('CondorMediumCondensedItalic'),
+       local('Condor Med Cond Italic'),
+       local('CondorMedCond-Italic'),
+       local('Condor-MediumCondensedItalic'),
+       local('Condor-Italic'),
        local('Condor Medium Condensed'),
+       local('Condor Med Cond'),
        local('Condor'),
-       url('/fonts/CondorMedCond.woff2') format('woff2'),
-       url('/fonts/CondorMedCond.otf') format('opentype'),
-       url('/fonts/CondorMedCond.ttf') format('truetype'),
-       url('/fonts/condor.otf') format('opentype'),
-       url('/fonts/condor.ttf') format('truetype');
+       url('/fonts/CondorMedCond-Italic.woff2') format('woff2'),
+       url('/fonts/CondorMedCond.woff2') format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Condor Med Cond';
+  src: local('Condor Medium Condensed Italic'),
+       local('CondorMediumCondensedItalic'),
+       local('Condor Med Cond Italic'),
+       local('CondorMedCond-Italic'),
+       local('Condor-MediumCondensedItalic'),
+       local('Condor-Italic'),
+       local('Condor Medium Condensed'),
+       local('Condor Med Cond'),
+       local('Condor');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Condor Med Cond';
+  src: local('Condor Medium Condensed Italic'),
+       local('CondorMediumCondensedItalic'),
+       local('Condor Med Cond Italic'),
+       local('CondorMedCond-Italic'),
+       local('Condor-MediumCondensedItalic'),
+       local('Condor-Italic'),
+       local('Condor Medium Condensed'),
+       local('Condor Med Cond'),
+       local('Condor');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Condor';
+  src: local('Condor Medium Condensed Italic'),
+       local('CondorMediumCondensedItalic'),
+       local('Condor Med Cond Italic'),
+       local('CondorMedCond-Italic'),
+       local('Condor-MediumCondensedItalic'),
+       local('Condor-Italic'),
+       local('Condor Medium Condensed'),
+       local('Condor Med Cond'),
+       local('Condor');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
-  --font-sans: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-serif: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", Georgia, serif;
-  --font-mono: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", monospace;
-  --font-condor: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", Georgia, serif;
+  --font-condor: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
+  --font-sans: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
+  --font-serif: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
+  --font-mono: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", monospace;
 
   /* Softlife & Australian Heritage Palette: Warm Cream, Australian Flag Blue & Crimson Red */
   --off-white: #FCF8F3;
@@ -75,10 +113,10 @@
 }
 
 @theme inline {
-  --font-sans: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-serif: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", Georgia, serif;
-  --font-mono: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", monospace;
-  --font-condor: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", Georgia, serif;
+  --font-condor: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
+  --font-sans: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
+  --font-serif: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif;
+  --font-mono: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", monospace;
 
   --color-off-white: #FCF8F3;
   --color-off-white-card: #FFFFFF;
@@ -95,12 +133,12 @@
 }
 
 /* ========================================================
-   Universal Typography: Apply Condor Med Cond Globally
+   Universal Typography: Exclusively Apply Condor Medium Condensed Italic Globally
    ======================================================== */
 *,
 *::before,
 *::after {
-  font-family: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", Georgia, sans-serif;
+  font-family: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif !important;
 }
 
 html,
@@ -109,7 +147,7 @@ h1, h2, h3, h4, h5, h6,
 p, span, div, a, button, input, textarea, select, label,
 nav, footer, header, section, main, article, aside,
 .font-sans, .font-serif, .font-mono, .font-condor {
-  font-family: "Condor Med Cond", "CondorMedCond", "Condor-MedCond", "Condor Medium Condensed", "Condor", Georgia, sans-serif !important;
+  font-family: "Condor Medium Condensed Italic", "Condor Med Cond", "CondorMedCond-Italic", "Condor-MediumCondensedItalic", "Condor-Italic", "Condor Medium Condensed", "Condor", sans-serif !important;
 }
 
 html,
@@ -133,36 +171,41 @@ body {
 }
 
 /* ========================================================
-   Typographic Hierarchy & Balancing for Condor Med Cond
+   Typographic Hierarchy & Balancing for Condor Medium Condensed Italic
    ======================================================== */
 h1 {
   font-weight: 800;
   letter-spacing: -0.015em;
   line-height: 1.08;
+  font-style: italic;
 }
 
 h2 {
   font-weight: 800;
   letter-spacing: -0.01em;
   line-height: 1.12;
+  font-style: italic;
 }
 
 h3 {
   font-weight: 700;
   letter-spacing: -0.005em;
   line-height: 1.18;
+  font-style: italic;
 }
 
 h4 {
   font-weight: 700;
   letter-spacing: 0.01em;
   line-height: 1.25;
+  font-style: italic;
 }
 
 h5, h6 {
   font-weight: 600;
   letter-spacing: 0.02em;
   line-height: 1.3;
+  font-style: italic;
 }
 
 p {
@@ -181,6 +224,7 @@ nav, footer {
 .font-condor {
   font-family: var(--font-condor);
   letter-spacing: -0.015em;
+  font-style: italic;
 }
 
 .condor-heading {

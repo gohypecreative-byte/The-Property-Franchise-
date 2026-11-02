@@ -1,3 +1,4 @@
+// src/components/ui/Footer.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -273,7 +274,7 @@ export function Footer() {
                 fill="#FAF9F6"
                 className="transition-colors duration-500 ease-out group-hover:fill-[#A10728]"
                 style={{
-                  fontFamily: "'Condor Med Cond', 'Condor', Georgia, serif",
+                  fontFamily: "'Condor Medium Condensed Italic', 'Condor Med Cond', 'Condor', sans-serif",
                   fontWeight: 500,
                   fontStyle: "italic",
                 }}

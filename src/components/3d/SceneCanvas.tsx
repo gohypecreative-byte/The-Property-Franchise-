@@ -1,3 +1,4 @@
+// src/components/3d/SceneCanvas.tsx
 "use client";
 
 import React, { Suspense, useRef, useState } from "react";
@@ -103,9 +104,8 @@ export function SceneCanvas({
 
   return (
     <div
-      className={`fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-[#0A1628] transition-all duration-700 ease-out ${
-        isDimmed ? "scale-[0.98] blur-[8px] opacity-35 brightness-75 pointer-events-none" : "scale-100 blur-0 opacity-100"
-      }`}
+      className={`fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-[#0A1628] transition-all duration-700 ease-out ${isDimmed ? "scale-[0.98] blur-[8px] opacity-35 brightness-75 pointer-events-none" : "scale-100 blur-0 opacity-100"
+        }`}
     >
       <Canvas
         shadows

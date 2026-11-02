@@ -1,3 +1,4 @@
+// src/components/3d/ControlBridge.tsx
 "use client";
 
 import React, { useRef } from "react";

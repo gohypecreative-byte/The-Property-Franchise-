@@ -1,3 +1,4 @@
+// src/components/3d/EnvironmentEffects.tsx
 "use client";
 
 import React, { useMemo, useRef } from "react";

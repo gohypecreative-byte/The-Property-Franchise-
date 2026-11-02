@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   transpilePackages: ["three", "@react-three/fiber", "@react-three/drei"],
+  experimental: {
+    turbopackPluginRuntimeStrategy: "forceWorkerThreads",
+  },
   turbopack: {
     rules: {
       "*.css": {

@@ -1,22 +1,28 @@
+// src/components/ui/RealEstateReelsSection.tsx
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   Play,
+  Pause,
   X,
   Volume2,
   VolumeX,
   MapPin,
-  Calendar,
-  Heart,
-  ChevronRight,
-  ChevronLeft,
 } from "lucide-react";
 import { scifiAudio } from "@/lib/audio";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 export interface ReelProperty {
   id: string;
   title: string;
+  shortTitle: string;
   category: "towers" | "campus" | "logistics" | "retail";
   categoryLabel: string;
   price: string;
@@ -35,6 +41,7 @@ export const REEL_PROPERTIES: ReelProperty[] = [
   {
     id: "regent-retail",
     title: "The Regent Commercial Galleria",
+    shortTitle: "REGENT COMMERCIAL GALLERIA",
     category: "retail",
     categoryLabel: "RETAIL COMPLEX",
     price: "$142,000,000",
@@ -47,11 +54,16 @@ export const REEL_PROPERTIES: ReelProperty[] = [
     videoSrc: "/reel_sample_2.mp4",
     description:
       "Iconic multi-tier luxury commercial retail pavilion and pedestrian promenade housing premier international flagship brands and gourmet restaurants.",
-    features: ["Flagship Anchor Tenants", "High-Footfall Promenade", "Curated Gourmet Dining"],
+    features: [
+      "Flagship Anchor Tenants",
+      "High-Footfall Promenade",
+      "Curated Gourmet Dining",
+    ],
   },
   {
     id: "consortium-suites",
     title: "Consortium Executive Commercial Suites",
+    shortTitle: "CONSORTIUM EXECUTIVE SUITES",
     category: "towers",
     categoryLabel: "EXECUTIVE SUITES",
     price: "$78,000,000",
@@ -64,11 +76,16 @@ export const REEL_PROPERTIES: ReelProperty[] = [
     videoSrc: "/sample_video.mp4",
     description:
       "Bespoke turnkey executive commercial suites and boardroom levels designed for private equity firms, asset management partnerships, and sovereign wealth offices.",
-    features: ["Panoramic Skyline Boardrooms", "Private Concierge Lift", "Encrypted Fiber Infrastructure"],
+    features: [
+      "Panoramic Skyline Boardrooms",
+      "Private Concierge Lift",
+      "Encrypted Fiber Infrastructure",
+    ],
   },
   {
     id: "sovereign-tower",
     title: "The Sovereign Financial Tower",
+    shortTitle: "SOVEREIGN FINANCIAL TOWER",
     category: "towers",
     categoryLabel: "OFFICE TOWER",
     price: "$185,000,000",
@@ -81,11 +98,16 @@ export const REEL_PROPERTIES: ReelProperty[] = [
     videoSrc: "/real-estate-intro.mp4",
     description:
       "A landmark Class-A commercial office skyscraper featuring 48 storeys of column-free floor plates, LEED Platinum certification, and high-speed destination elevators.",
-    features: ["48 Commercial Storeys", "LEED Platinum Core", "High-Speed Elevators"],
+    features: [
+      "48 Commercial Storeys",
+      "LEED Platinum Core",
+      "High-Speed Elevators",
+    ],
   },
   {
     id: "pacific-campus",
     title: "Pacific Commerce Business Campus",
+    shortTitle: "PACIFIC COMMERCE CAMPUS",
     category: "campus",
     categoryLabel: "CORPORATE CAMPUS",
     price: "$124,500,000",
@@ -98,13 +120,18 @@ export const REEL_PROPERTIES: ReelProperty[] = [
     videoSrc: "/reel_sample_2.mp4",
     description:
       "State-of-the-art multi-building commercial corporate campus with expansive glass atriums, biophilic collaborative plazas, and fiber-redundant infrastructure.",
-    features: ["Triple-Net Institutional Lease", "Electric Fleet Hub", "Biophilic Atrium"],
+    features: [
+      "Triple-Net Institutional Lease",
+      "Electric Fleet Hub",
+      "Biophilic Atrium",
+    ],
   },
   {
     id: "aero-logistics",
     title: "Aero-Logistics Distribution Center",
+    shortTitle: "AERO-LOGISTICS HUB",
     category: "logistics",
-    categoryLabel: "INDUSTRIAL & LOGISTICS",
+    categoryLabel: "LOGISTICS CENTER",
     price: "$96,000,000",
     location: "Continental Freight & Port Hub",
     floors: 2,
@@ -115,560 +142,548 @@ export const REEL_PROPERTIES: ReelProperty[] = [
     videoSrc: "/sample_video.mp4",
     description:
       "Next-generation high-throughput logistics facility with 40-foot clear ceiling heights, 120 cross-dock loading bays, and full rooftop solar array.",
-    features: ["120 Cross-Dock Bays", "40' Clear Height", "100% Rooftop Solar"],
+    features: [
+      "120 Cross-Dock Bays",
+      "40' Clear Height",
+      "100% Rooftop Solar",
+    ],
   },
 ];
 
-// Staggered sequential scroll windows for one-by-one progressive reveal of all 5 video reels
-const CARD_SPECS = [
-  { start: 0.0, end: 0.18, color: "#720808", indexLabel: "01 // RETAIL" },
-  { start: 0.16, end: 0.36, color: "#720808", indexLabel: "02 // SUITES" },
-  { start: 0.34, end: 0.54, color: "#720808", indexLabel: "03 // TOWERS" },
-  { start: 0.52, end: 0.72, color: "#720808", indexLabel: "04 // CAMPUS" },
-  { start: 0.7, end: 0.9, color: "#720808", indexLabel: "05 // LOGISTICS" },
-];
-
-export interface RealEstateReelsSectionProps {
+interface RealEstateReelsSectionProps {
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-export function RealEstateReelsSection({ scrollContainerRef }: RealEstateReelsSectionProps) {
+export function RealEstateReelsSection({
+  scrollContainerRef,
+}: RealEstateReelsSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const cardsRowRef = useRef<HTMLDivElement>(null);
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [maxCardHeight, setMaxCardHeight] = useState(560);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
-  // Video modal state
+  // References for all persistent card elements
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // GSAP Smooth Power-Scrub Proxy
+  const progressProxy = useRef<{ value: number }>({ value: 0 });
+  const viewportWidthRef = useRef<number>(1200);
+  const [viewportWidth, setViewportWidth] = useState<number>(1200);
+
+  // Modal Video Viewer State
   const [selectedProperty, setSelectedProperty] = useState<ReelProperty | null>(null);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [likedReels, setLikedReels] = useState<Record<string, boolean>>({});
-  const [inquirySent, setInquirySent] = useState(false);
-
+  const [isMuted, setIsMuted] = useState(true);
   const modalVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Standard Instagram Reel 9:16 responsive height calculation with enlarged display
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (typeof window === "undefined") return;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
+  // Rotations for the overlapping composition
+  const baseRotations = [-1.8, 2.2, -1.0, 1.8, -2.0];
 
-      if (w < 640) {
-        // Mobile: large, prominent vertical Reel cards
-        const targetH = Math.min(480, Math.round(h * 0.62));
-        setMaxCardHeight(Math.max(420, targetH));
-      } else if (w < 1024) {
-        // Tablet: commanding vertical cards
-        const targetH = Math.min(540, Math.round(h * 0.66));
-        setMaxCardHeight(Math.max(470, targetH));
-      } else {
-        // Desktop 5-column grid: prominent vertical 9:16 cards filling the display
-        const availableW = Math.min(1560, w - 64);
-        const cardW = (availableW - 80) / 5;
-        const target916H = Math.round(cardW * (16 / 9));
-        // Allow cards to scale up generously while fitting comfortably within viewport height
-        const maxFitH = Math.round((h - 120) * 0.82);
-        const preferredH = Math.max(540, Math.min(620, target916H));
-        setMaxCardHeight(Math.min(maxFitH, preferredH));
-      }
+  // Measure viewport width
+  useEffect(() => {
+    const handleResize = () => {
+      const width =
+        viewportRef.current?.clientWidth ||
+        (typeof window !== "undefined" ? window.innerWidth : 1200);
+      viewportWidthRef.current = width;
+      setViewportWidth(width);
+      renderUnifiedAnimation(progressProxy.current.value);
     };
-    updateDimensions();
-    window.addEventListener("resize", updateDimensions);
-    return () => window.removeEventListener("resize", updateDimensions);
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // High-performance RAF lerp-interpolated smooth momentum scroll
-  const targetProgressRef = useRef(0);
-  const currentProgressRef = useRef(0);
-  const animFrameRef = useRef<number | null>(null);
+  // --------------------------------------------------------------------------
+  // UNIFIED GSAP ANIMATION CORE
+  // 1. Initial state (p = 0): Reels are NOT visible initially when entering
+  // 2. Scroll begins (0.00 -> 0.16): Reel 0 enters from top, starts small & grows
+  // 3. Stacking (0.16 -> 0.46): Reels smoothly grow and stack one on top of another
+  // 4. Separation (0.46 -> 0.68): Reels smoothly separate into aligned horizontal row
+  // 5. Horizontal Gallery (0.68 -> 1.00): Scroll triggers smooth horizontal movement
+  // --------------------------------------------------------------------------
+  const renderUnifiedAnimation = useCallback((p: number) => {
+    const width = viewportWidthRef.current;
+    const isMobile = width < 640;
+    const isTablet = width >= 640 && width < 1024;
+    const numCards = REEL_PROPERTIES.length;
 
+    // Full Gallery Dimensions
+    const fullCardWidth = isMobile ? 240 : isTablet ? 280 : 330;
+    const fullGap = isMobile ? 14 : isTablet ? 18 : 24; // minimal spacing
+    const totalFullWidth = numCards * fullCardWidth + (numCards - 1) * fullGap;
+    const maxGalleryScroll = Math.max(
+      0,
+      totalFullWidth - width + (isMobile ? 40 : 160)
+    );
+
+    // Stacking Step
+    const stackOverlapStep = isMobile ? 65 : isTablet ? 95 : 130;
+
+    // Target positions in the overlapping stack
+    const stackTargetsX = REEL_PROPERTIES.map((_, i) => {
+      return -((numCards - 1) * stackOverlapStep) / 2 + i * stackOverlapStep;
+    });
+
+    // Target positions in the separated horizontal gallery
+    const galleryTargetsX = REEL_PROPERTIES.map((_, i) => {
+      return (
+        -totalFullWidth / 2 +
+        i * (fullCardWidth + fullGap) +
+        fullCardWidth / 2
+      );
+    });
+
+    // Staggered entry windows for stacking (Reels 1..4)
+    const stackWindows = [
+      { start: 0.0, end: 0.16 }, // Reel 0 enters from top
+      { start: 0.18, end: 0.25 }, // Reel 1 slides in & stacks
+      { start: 0.25, end: 0.32 }, // Reel 2 slides in & stacks
+      { start: 0.32, end: 0.39 }, // Reel 3 slides in & stacks
+      { start: 0.39, end: 0.46 }, // Reel 4 slides in & stacks
+    ];
+
+    // Animate every persistent card smoothly along the single timeline
+    for (let idx = 0; idx < numCards; idx++) {
+      const cardEl = cardRefs.current[idx];
+      if (!cardEl) continue;
+
+      let cardX = 0;
+      let cardY = 0;
+      let cardScale = 1;
+      let cardRotate = 0;
+      let cardOpacity = 0; // Default to invisible
+
+      const stackX = stackTargetsX[idx];
+      const galleryX = galleryTargetsX[idx];
+      const rot = baseRotations[idx];
+
+      if (idx === 0) {
+        // ====================================================================
+        // REEL 0: TOP ENTRANCE & SMOOTH GROWTH (Appears only on scroll)
+        // At p = 0: COMPLETELY INVISIBLE.
+        // As user scrolls (0.00 -> 0.16): glides from top, starts small & grows
+        // ====================================================================
+        if (p <= 0.002) {
+          // Completely hidden initially when entering the section
+          cardOpacity = 0;
+          cardScale = 0.38;
+          cardY = -220;
+          cardX = 0;
+          cardRotate = 0;
+        } else if (p <= 0.16) {
+          // Actively entering from top and expanding smoothly
+          const t = p / 0.16;
+          const easeT = 1 - Math.pow(1 - t, 3); // Cubic ease-out
+
+          cardX = 0;
+          cardY = -220 * (1 - easeT); // Slides down smoothly from the top
+          cardScale = 0.38 + 0.62 * easeT; // Starts small, gradually increases in size
+          cardRotate = 0;
+          cardOpacity = Math.min(1.0, t * 2.8); // Fades in smoothly as user scrolls
+        } else if (p <= 0.24) {
+          // Glides from center (X=0) to its stacked position
+          const glideT = (p - 0.16) / 0.08;
+          const easeGlide = glideT * glideT * (3 - 2 * glideT);
+          cardX = stackX * easeGlide;
+          cardY = 0;
+          cardScale = 1.0;
+          cardRotate = rot * easeGlide;
+          cardOpacity = 1.0;
+        } else if (p <= 0.46) {
+          // Rests in the stack as subsequent reels layer over it
+          cardX = stackX;
+          cardY = 0;
+          cardScale = 1.0;
+          cardRotate = rot;
+          cardOpacity = 1.0;
+        } else if (p <= 0.68) {
+          // Separates from overlapping stack into horizontal gallery
+          const sepT = (p - 0.46) / 0.22;
+          const easeSep = sepT * sepT * (3 - 2 * sepT);
+          cardX = stackX * (1 - easeSep) + galleryX * easeSep;
+          cardY = 0;
+          cardScale = 1.0;
+          cardRotate = rot * (1 - easeSep);
+          cardOpacity = 1.0;
+        } else {
+          // Horizontal gallery scrolling across the screen
+          const horizT = (p - 0.68) / 0.32;
+          cardX = galleryX - horizT * maxGalleryScroll;
+          cardY = 0;
+          cardScale = 1.0;
+          cardRotate = 0;
+          cardOpacity = 1.0;
+        }
+      } else {
+        // ====================================================================
+        // REELS 1, 2, 3, 4: SEQUENTIALLY GROW & STACK ON TOP OF EACH OTHER
+        // ====================================================================
+        const win = stackWindows[idx];
+
+        if (p < win.start) {
+          // Not yet entered — completely invisible
+          cardOpacity = 0;
+          cardScale = 0.45;
+          cardX = width / 2 + 150;
+          cardY = 70;
+          cardRotate = rot;
+        } else if (p <= win.end) {
+          // Actively sliding in, growing, and stacking over previous reels
+          const rawEntryT = (p - win.start) / (win.end - win.start);
+          const easeEntryT = 1 - Math.pow(1 - rawEntryT, 3); // Cubic ease-out
+
+          cardScale = 0.48 + 0.52 * easeEntryT; // Smoothly increases in size as it stacks
+          const offscreenX = width / 2 + 150;
+          cardX = offscreenX * (1 - easeEntryT) + stackX * easeEntryT;
+          cardY = 65 * (1 - easeEntryT);
+          cardRotate = rot * easeEntryT;
+          cardOpacity = Math.min(1.0, rawEntryT * 2.5);
+        } else if (p <= 0.46) {
+          // Settled in the layered stack
+          cardX = stackX;
+          cardY = 0;
+          cardScale = 1.0;
+          cardRotate = rot;
+          cardOpacity = 1.0;
+        } else if (p <= 0.68) {
+          // Gradually separate into clean horizontal row
+          const sepT = (p - 0.46) / 0.22;
+          const easeSep = sepT * sepT * (3 - 2 * sepT);
+
+          cardX = stackX * (1 - easeSep) + galleryX * easeSep;
+          cardY = 0;
+          cardScale = 1.0;
+          cardRotate = rot * (1 - easeSep);
+          cardOpacity = 1.0;
+        } else {
+          // Horizontal gallery scrolling across the screen
+          const horizT = (p - 0.68) / 0.32;
+          cardX = galleryX - horizT * maxGalleryScroll;
+          cardY = 0;
+          cardScale = 1.0;
+          cardRotate = 0;
+          cardOpacity = 1.0;
+        }
+      }
+
+      // Hardware-accelerated GPU direct transform
+      cardEl.style.transform = `translate3d(${cardX.toFixed(2)}px, ${cardY.toFixed(
+        2
+      )}px, 0) scale(${cardScale.toFixed(4)}) rotate(${cardRotate.toFixed(2)}deg)`;
+      cardEl.style.opacity = cardOpacity.toFixed(3);
+      cardEl.style.pointerEvents = cardOpacity > 0.35 ? "auto" : "none";
+    }
+  }, []);
+
+  // --------------------------------------------------------------------------
+  // GSAP SCROLLER WITH SMOOTH VELOCITY INERTIA
+  // --------------------------------------------------------------------------
   useEffect(() => {
-    const getScrollEl = () => scrollContainerRef?.current || null;
+    const container = scrollContainerRef?.current;
+    if (!container) return;
 
-    const updateScrollProgress = () => {
+    const handleScroll = () => {
       if (!containerRef.current) return;
-      const scrollEl = getScrollEl();
-      const rect = containerRef.current.getBoundingClientRect();
-      const containerHeight = containerRef.current.offsetHeight;
-      const viewportHeight = window.innerHeight;
+      const track = containerRef.current;
+      const scrollTop = container.scrollTop;
+      const trackTop = track.offsetTop;
+      const trackHeight = track.offsetHeight;
+      const clientHeight = container.clientHeight;
+      const maxScroll = trackHeight - clientHeight;
+      if (maxScroll <= 0) return;
 
-      const topOffset = scrollEl ? 52 : 0;
-      const totalScrollable = containerHeight - (viewportHeight - topOffset);
+      const rawProgress = (scrollTop - trackTop) / maxScroll;
+      const p = Math.min(Math.max(rawProgress, 0), 1);
 
-      if (totalScrollable <= 0) return;
-
-      const scrolledPastTop = topOffset - rect.top;
-      const progress = Math.max(0, Math.min(1, scrolledPastTop / totalScrollable));
-      targetProgressRef.current = progress;
-
-      // Start rAF momentum loop if not active
-      if (animFrameRef.current === null) {
-        animFrameRef.current = requestAnimationFrame(tick);
-      }
+      // GSAP smooth power scrub with fluid weighted momentum
+      gsap.to(progressProxy.current, {
+        value: p,
+        duration: 0.35,
+        ease: "power2.out",
+        overwrite: true,
+        onUpdate: () => {
+          renderUnifiedAnimation(progressProxy.current.value);
+        },
+      });
     };
 
-    const tick = () => {
-      const target = targetProgressRef.current;
-      const current = currentProgressRef.current;
-      const diff = target - current;
-
-      if (Math.abs(diff) < 0.0004) {
-        currentProgressRef.current = target;
-        setScrollProgress(target);
-        animFrameRef.current = null;
-        return;
-      }
-
-      // 0.12 lerp factor delivers butter-smooth momentum easing without lag or jitter
-      const next = current + diff * 0.12;
-      currentProgressRef.current = next;
-      setScrollProgress(next);
-
-      animFrameRef.current = requestAnimationFrame(tick);
-    };
-
-    const target = getScrollEl() || window;
-    target.addEventListener("scroll", updateScrollProgress, { passive: true });
-    window.addEventListener("resize", updateScrollProgress);
-    updateScrollProgress();
-
-    const timer = setTimeout(updateScrollProgress, 100);
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    // Initial call to set initial invisibility at p = 0
+    renderUnifiedAnimation(0);
 
     return () => {
-      target.removeEventListener("scroll", updateScrollProgress);
-      window.removeEventListener("resize", updateScrollProgress);
-      clearTimeout(timer);
-      if (animFrameRef.current !== null) {
-        cancelAnimationFrame(animFrameRef.current);
-        animFrameRef.current = null;
-      }
+      container.removeEventListener("scroll", handleScroll);
+      gsap.killTweensOf(progressProxy.current);
     };
-  }, [scrollContainerRef]);
+  }, [scrollContainerRef, renderUnifiedAnimation]);
 
-  // Video modal handling
   const handleOpenReel = (property: ReelProperty) => {
-    scifiAudio.playHoloBeep(920, 0.1);
+    scifiAudio.playHoloBeep(980, 0.1);
     setSelectedProperty(property);
     setIsPlaying(true);
-    setCurrentTime(0);
-    setInquirySent(false);
-    document.body.style.overflow = "hidden";
   };
 
-  const handleCloseReel = () => {
+  const handleCloseModal = () => {
+    scifiAudio.playHoloBeep(720, 0.08);
     setSelectedProperty(null);
-    document.body.style.overflow = "auto";
   };
 
-  const togglePlay = () => {
-    scifiAudio.playHoloBeep(850, 0.05);
-    setIsPlaying((prev) => !prev);
-  };
-
-  const toggleMute = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    scifiAudio.playHoloBeep(700, 0.05);
-    setIsMuted((prev) => !prev);
-  };
-
-  const toggleLike = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    scifiAudio.playHoloBeep(1100, 0.08);
-    setLikedReels((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const handleTimeUpdate = () => {
-    if (modalVideoRef.current) {
-      setCurrentTime(modalVideoRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (modalVideoRef.current) {
-      setDuration(modalVideoRef.current.duration);
-    }
-  };
-
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    const rect = el.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const newProgress = Math.max(0, Math.min(1, clickX / rect.width));
-    if (modalVideoRef.current && duration > 0) {
-      modalVideoRef.current.currentTime = newProgress * duration;
-    }
-  };
-
-  const handleNextReel = () => {
-    if (!selectedProperty) return;
-    scifiAudio.playHoloBeep(800, 0.05);
-    const currIdx = REEL_PROPERTIES.findIndex((p) => p.id === selectedProperty.id);
-    const nextIdx = (currIdx + 1) % REEL_PROPERTIES.length;
-    setSelectedProperty(REEL_PROPERTIES[nextIdx]);
-    setIsPlaying(true);
-    setCurrentTime(0);
-    setInquirySent(false);
-  };
-
-  const handlePrevReel = () => {
-    if (!selectedProperty) return;
-    scifiAudio.playHoloBeep(800, 0.05);
-    const currIdx = REEL_PROPERTIES.findIndex((p) => p.id === selectedProperty.id);
-    const prevIdx = (currIdx - 1 + REEL_PROPERTIES.length) % REEL_PROPERTIES.length;
-    setSelectedProperty(REEL_PROPERTIES[prevIdx]);
-    setIsPlaying(true);
-    setCurrentTime(0);
-    setInquirySent(false);
-  };
-
-  // Modal Video play/pause effect
-  useEffect(() => {
-    if (!modalVideoRef.current) return;
-    if (isPlaying) {
-      modalVideoRef.current.play().catch(() => {});
-    } else {
-      modalVideoRef.current.pause();
-    }
-  }, [isPlaying, selectedProperty]);
-
-  useEffect(() => {
-    if (!modalVideoRef.current) return;
-    modalVideoRef.current.muted = isMuted;
-  }, [isMuted]);
-
-  // Keyboard navigation for video player
+  // Keyboard navigation for modal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedProperty) return;
       if (e.key === "Escape") {
-        handleCloseReel();
-      } else if (e.key === " " || e.code === "Space") {
+        handleCloseModal();
+      } else if (e.key === " ") {
         e.preventDefault();
-        togglePlay();
+        setIsPlaying((prev) => !prev);
       } else if (e.key === "m" || e.key === "M") {
         setIsMuted((prev) => !prev);
-      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-        handleNextReel();
-      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-        handlePrevReel();
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedProperty, isPlaying]);
+  }, [selectedProperty]);
+
+  const isMobile = viewportWidth < 640;
+  const isTablet = viewportWidth >= 640 && viewportWidth < 1024;
+  const fullCardWidth = isMobile ? 240 : isTablet ? 280 : 330;
 
   return (
     <section
       id="real-estate-reels"
-      className="relative z-20 bg-[#FCF8F3] text-[#012169] selection:bg-[#A10728] selection:text-[#FCF8F3]"
+      className="relative z-20 bg-[#FCF8F3] text-[#012169] selection:bg-[#A10728] selection:text-[#FCF8F3] font-['Condor_Medium_Condensed_Italic',sans-serif] italic"
     >
       {/* Subtle Architectural Grid Texture */}
-      <div className="absolute inset-0 pointer-events-none opacity-30 bg-[linear-gradient(to_right,rgba(1,33,105,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(1,33,105,0.04)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+      <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(to_right,rgba(1,33,105,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(1,33,105,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
 
       {/* ====================================================================
-          STICKY SCROLL CONTAINER (280vh Total Scroll Track)
-          Pins sticky stage to the viewport so user expands each of the 5 reels one by one with scroll.
+          EXPANSIVE 550vh PINNED SCROLL TRACK
+          1. Initial: Reels are NOT visible initially
+          2. Scroll starts: Reel 0 smoothly enters from the top, starts small & grows
+          3. Stacking: Reels 1..4 slide in, grow, and stack on top of each other
+          4. Separation: Reels smoothly separate into aligned horizontal row
+          5. Horizontal Gallery: Scroll triggers smooth horizontal movement
           ==================================================================== */}
-      <div ref={containerRef} className="relative h-[280vh]">
-        {/* Sticky Viewport: Perfectly pinned under modal header while scrolling */}
-        <div className="sticky top-0 sm:top-[52px] h-screen sm:h-[calc(100vh-52px)] w-full flex flex-col justify-between py-3 sm:py-4 lg:py-5 px-3 sm:px-6 lg:px-8 select-none overflow-hidden">
-          {/* 1. TOP HEADER: Editorial Title */}
-          <div className="w-full max-w-[1560px] mx-auto flex items-center justify-between border-b border-[#012169]/15 pb-2.5 sm:pb-3 flex-shrink-0 z-20">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#A10728] animate-pulse" />
-                <span className="font-sans text-[10px] sm:text-xs font-bold text-[#A10728] tracking-[0.2em] uppercase">
-                  EDITORIAL ARCHIVE // SCROLL TO REVEAL REELS ONE BY ONE
-                </span>
-              </div>
-              <h2 className="font-['Condor_Med_Cond',sans-serif] text-2xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-[#012169] leading-none">
-                Commercial Archives <span className="text-[#A10728] font-normal italic font-serif">&amp;</span> Video Reels
-              </h2>
-            </div>
-          </div>
-
-          {/* 2. MAIN PROGRESSIVE STAGE: 5 Standard 9:16 Instagram Reel Video Cards Growing from Baseline */}
-          <div className="w-full max-w-[1560px] mx-auto flex-1 flex flex-col justify-end items-center my-auto z-20 py-1.5 sm:py-2 overflow-visible">
-            <div
-              ref={cardsRowRef}
-              className="w-full flex md:grid md:grid-cols-5 gap-3.5 sm:gap-4 lg:gap-5 xl:gap-6 items-end justify-start md:justify-center overflow-x-auto md:overflow-visible pb-2 no-scrollbar"
-            >
-              {REEL_PROPERTIES.map((property, idx) => {
-                const spec = CARD_SPECS[idx];
-                const rawT = Math.max(0, Math.min(1, (scrollProgress - spec.start) / (spec.end - spec.start)));
-
-                // Smooth cubic bezier easing
-                const easeT =
-                  rawT < 0.5 ? 4 * rawT * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 3) / 2;
-
-                const minHeight = 130;
-                const currentHeight = Math.round(minHeight + (maxCardHeight - minHeight) * easeT);
-                const opacity = 1;
-                const scale = 0.95 + 0.05 * easeT;
-
-                // When closed (easeT === 0), content and video are completely hidden (opacity 0), showing only solid red.
-                // As the reel opens with scroll, video and title smoothly fade in.
-                const isCardOpen = easeT > 0.05;
-                const videoOpacity = Math.max(0, Math.min(1, (easeT - 0.04) / 0.65));
-                const contentOpacity = Math.max(0, Math.min(1, (easeT - 0.15) / 0.75));
-
-                return (
-                  <div
-                    key={property.id}
-                    onClick={() => handleOpenReel(property)}
-                    className={`group relative flex-shrink-0 w-[260px] sm:w-[290px] md:w-full flex flex-col justify-end overflow-hidden cursor-pointer select-none rounded-2xl sm:rounded-3xl transition-[border-color,box-shadow,background-color] duration-300 will-change-[height,transform] ${
-                      isCardOpen
-                        ? "border-2 border-white/20 hover:border-white/55 shadow-[0_16px_50px_rgba(0,0,0,0.35)] hover:shadow-[0_20px_60px_rgba(1,33,105,0.3)]"
-                        : "border-2 border-[#720808] shadow-[0_12px_40px_rgba(114,8,8,0.22)]"
-                    }`}
-                    style={{
-                      height: `${currentHeight}px`,
-                      opacity,
-                      transform: `scale(${scale})`,
-                      backgroundColor: isCardOpen ? "#0A0F1D" : (spec.color || "#720808"),
-                      transformOrigin: "bottom center",
-                    }}
-                    title={`Click to watch ${property.title}`}
-                  >
-                    {/* Layer 1: Actual Video Playing Smoothly Inside the Reel Card (Fades in without red tint) */}
+      <div ref={containerRef} className="relative h-[550vh]">
+        <div
+          ref={viewportRef}
+          className="sticky top-0 h-screen w-full flex flex-col justify-between py-4 sm:py-6 lg:py-8 px-3 sm:px-6 lg:px-10 select-none overflow-hidden"
+        >
+          {/* ------------------------------------------------------------------
+              SINGLE UNIFIED ANIMATION STAGE
+              Each card is a persistent entity animating through all stages.
+              ------------------------------------------------------------------ */}
+          <div className="relative w-full flex-1 flex items-center justify-center my-auto overflow-visible z-20">
+            {REEL_PROPERTIES.map((property, idx) => (
+              <div
+                key={property.id}
+                ref={(el) => {
+                  cardRefs.current[idx] = el;
+                }}
+                onClick={() => handleOpenReel(property)}
+                style={{
+                  width: `${fullCardWidth}px`,
+                  zIndex: 10 + idx,
+                  willChange: "transform, opacity",
+                  transformOrigin: "center center",
+                }}
+                className="absolute flex flex-col items-center cursor-pointer group"
+              >
+                {/* Main Card Frame */}
+                <div className="relative w-full aspect-[9/15] rounded-[22px] sm:rounded-[26px] overflow-hidden border-[2px] border-[#012169]/25 bg-[#0E1B33] shadow-[0_20px_50px_rgba(1,33,105,0.25)] hover:shadow-[0_25px_65px_rgba(161,7,40,0.38)] hover:border-[#A10728] transition-all duration-300 select-none">
+                  {/* Background Video Layer */}
+                  <div className="absolute inset-0 z-0 bg-[#0A1224] overflow-hidden">
                     <video
-                      ref={(el) => {
-                        if (el) {
-                          if (isCardOpen && el.paused) {
-                            el.play().catch(() => {});
-                          } else if (!isCardOpen && !el.paused) {
-                            el.pause();
-                          }
-                        }
-                      }}
                       src={property.videoSrc}
                       poster={property.image}
-                      autoPlay={false}
-                      loop
+                      autoPlay
                       muted
+                      loop
                       playsInline
-                      preload="auto"
-                      style={{ opacity: videoOpacity }}
-                      className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ease-out group-hover:scale-105"
+                      className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
-
-                    {/* Layer 2: Neutral Dark Vignette Overlay for Text Legibility (Zero Red Tint on Open Video) */}
-                    <div
-                      className="absolute inset-0 pointer-events-none transition-opacity duration-300"
-                      style={{
-                        opacity: contentOpacity,
-                        background:
-                          "linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.3) 35%, transparent 65%)",
-                      }}
-                    />
-
-                    {/* Layer 3: Clean Property Title & Relevant Reel Details */}
-                    <div
-                      className="relative z-20 p-3 sm:p-4 lg:p-5 text-white flex flex-col justify-end transition-opacity duration-300"
-                      style={{ opacity: contentOpacity }}
-                    >
-                      <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <span className="font-mono text-[9px] sm:text-[10px] font-bold text-white/90 bg-white/15 backdrop-blur-md px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                          {spec.indexLabel}
-                        </span>
-                        <span className="font-mono text-[10px] sm:text-xs font-bold text-white/95">
-                          {property.price}
-                        </span>
-                      </div>
-                      <h3 className="font-['Condor_Med_Cond',sans-serif] text-base sm:text-lg lg:text-xl font-bold leading-tight line-clamp-2 text-white group-hover:text-[#FCF8F3] transition-colors drop-shadow-sm">
-                        {property.title}
-                      </h3>
-                    </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* ========================================================
-          AUTHENTIC VERTICAL 9:16 INSTAGRAM REELS VIDEO MODAL
-         ======================================================== */}
-      {selectedProperty && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0E1B33]/85 backdrop-blur-xl p-3 sm:p-6 select-none animate-in fade-in duration-200">
-          {/* Backdrop click to close */}
-          <div className="absolute inset-0" onClick={handleCloseReel} />
-
-          {/* Desktop Navigation Chevrons Outside the Vertical Phone Frame */}
-          <button
-            onClick={handlePrevReel}
-            className="hidden md:flex absolute left-8 top-1/2 -translate-y-1/2 z-30 h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-[#0E1B33]/90 text-[#FAF9F6] backdrop-blur-md hover:border-white/50 hover:bg-[#012169] transition-colors cursor-pointer shadow-xl"
-            title="Previous Reel"
+      {/* ====================================================================
+          CINEMATIC FULL-SCREEN REEL VIEWER MODAL
+          ==================================================================== */}
+      <AnimatePresence>
+        {selectedProperty && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-[#0E1B33]/85 backdrop-blur-md"
+            onClick={handleCloseModal}
           >
-            <ChevronLeft className="h-6 w-6" />
-          </button>
-          <button
-            onClick={handleNextReel}
-            className="hidden md:flex absolute right-8 top-1/2 -translate-y-1/2 z-30 h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-[#0E1B33]/90 text-[#FAF9F6] backdrop-blur-md hover:border-white/50 hover:bg-[#012169] transition-colors cursor-pointer shadow-xl"
-            title="Next Reel"
-          >
-            <ChevronRight className="h-6 w-6" />
-          </button>
-
-          {/* Modal Container: Strict 9:16 Aspect Ratio Frame */}
-          <div
-            className="relative z-20 flex flex-col justify-between overflow-hidden rounded-3xl border-2 border-white/20 bg-[#0E1B33] shadow-[0_24px_70px_rgba(14,27,51,0.8)] w-full max-w-[380px] sm:max-w-[400px] h-[82vh] max-h-[760px] aspect-[9/16]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Native Video Element */}
-            <video
-              ref={modalVideoRef}
-              src={selectedProperty.videoSrc}
-              className="absolute inset-0 h-full w-full object-cover cursor-pointer"
-              loop
-              playsInline
-              onClick={togglePlay}
-              onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={handleLoadedMetadata}
-            />
-
-            {/* Subtle Gradient Overlays for Readability */}
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0E1B33] via-transparent to-[#0E1B33]/70" />
-
-            {/* Top Bar: Progress Indicator & Action Controls */}
-            <div className="relative z-30 p-4">
-              {/* Instagram-style Top Segmented Progress Bar */}
-              <div
-                onClick={handleSeek}
-                className="h-1 w-full overflow-hidden rounded-full bg-white/20 cursor-pointer"
-              >
-                <div
-                  className="h-full bg-white transition-all duration-100 ease-linear shadow-[0_0_10px_rgba(255,255,255,0.7)]"
-                  style={{
-                    width: duration > 0 ? `${(currentTime / duration) * 100}%` : "0%",
-                  }}
-                />
-              </div>
-
-              <div className="mt-3 flex items-center justify-between text-white">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-[#012169]/90 backdrop-blur-md px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-[#FAF9F6] border border-white/25 shadow-sm">
-                    {selectedProperty.categoryLabel}
-                  </span>
-                  <span className="font-mono text-xs text-[#FAF9F6]/80">
-                    {selectedProperty.duration}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={toggleMute}
-                    className="flex h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-[#0E1B33]/80 backdrop-blur-md text-[#FAF9F6] border border-white/20 hover:bg-[#012169] transition-colors cursor-pointer"
-                    title={isMuted ? "Unmute" : "Mute"}
-                  >
-                    {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                  </button>
-                  <button
-                    onClick={handleCloseReel}
-                    className="flex h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-[#0E1B33]/80 backdrop-blur-md text-[#FAF9F6] border border-white/20 hover:bg-[#012169] transition-colors cursor-pointer"
-                    title="Close"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Center Play/Pause Tap Flash Overlay */}
-            {!isPlaying && (
-              <div
-                onClick={togglePlay}
-                className="absolute inset-0 z-20 flex items-center justify-center cursor-pointer bg-black/35 backdrop-blur-[2px]"
-              >
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#012169]/90 border border-white/30 backdrop-blur-md text-[#FAF9F6] shadow-[0_0_30px_rgba(1,33,105,0.6)] transition-transform hover:scale-110">
-                  <Play className="h-7 w-7 ml-1 fill-current" />
-                </div>
-              </div>
-            )}
-
-            {/* Right Side Social Actions Column */}
-            <div className="absolute right-4 bottom-24 z-30 flex flex-col items-center gap-4 text-white">
-              <button
-                onClick={(e) => toggleLike(e, selectedProperty.id)}
-                className="flex flex-col items-center gap-1 group/btn cursor-pointer"
-                title="Like"
-              >
-                <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#0E1B33]/85 backdrop-blur-md transition-transform group-hover/btn:scale-110 ${
-                    likedReels[selectedProperty.id] ? "text-rose-400 border-rose-400" : "text-white"
-                  }`}
-                >
-                  <Heart
-                    className={`h-5 w-5 ${
-                      likedReels[selectedProperty.id] ? "fill-rose-400 text-rose-400" : ""
-                    }`}
-                  />
-                </div>
-                <span className="font-mono text-[9px] text-[#FAF9F6]/80">Save</span>
-              </button>
-
-              <button
-                onClick={handlePrevReel}
-                className="flex md:hidden flex-col items-center gap-1 group/btn cursor-pointer"
-                title="Previous Reel"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0E1B33]/85 backdrop-blur-md border border-white/20 text-white group-hover/btn:scale-110 transition-transform">
-                  <ChevronLeft className="h-5 w-5" />
-                </div>
-                <span className="font-mono text-[9px] text-[#FAF9F6]/80">Prev</span>
-              </button>
-
-              <button
-                onClick={handleNextReel}
-                className="flex md:hidden flex-col items-center gap-1 group/btn cursor-pointer"
-                title="Next Reel"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0E1B33]/85 backdrop-blur-md border border-white/20 text-white group-hover/btn:scale-110 transition-transform">
-                  <ChevronRight className="h-5 w-5" />
-                </div>
-                <span className="font-mono text-[9px] text-[#FAF9F6]/80">Next</span>
-              </button>
-            </div>
-
-            {/* Bottom Overlay Info & Call to Action */}
-            <div
-              className="relative z-30 p-5 text-white max-w-[85%]"
+            <motion.div
+              initial={{ scale: 0.92, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.92, y: 30 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
               onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-[28px] border-[2px] border-[#012169]/30 bg-[#0E1B33] text-[#FAF9F6] shadow-2xl flex flex-col md:flex-row"
             >
-              <p className="font-mono text-xl sm:text-2xl font-bold text-[#FAF9F6]">
-                {selectedProperty.price}
-              </p>
-              <h3 className="mt-1 font-['Condor_Med_Cond',sans-serif] text-base sm:text-lg font-bold text-white leading-snug line-clamp-1">
-                {selectedProperty.title}
-              </h3>
-              <p className="mt-1 flex items-center gap-1 text-xs font-mono text-[#FAF9F6]/85">
-                <MapPin className="h-3 w-3 text-sky-300 shrink-0" />
-                <span className="truncate">{selectedProperty.location}</span>
-              </p>
-              <p className="mt-1 text-[11px] font-mono text-[#FAF9F6]/70">
-                {selectedProperty.floors} Storeys • {selectedProperty.sqft}
-              </p>
-
-              {/* Prospectus Request CTA */}
+              {/* Close Button */}
               <button
-                onClick={() => {
-                  scifiAudio.playHoloBeep(980, 0.1);
-                  setInquirySent(true);
-                }}
-                className="mt-3.5 flex items-center gap-2 rounded-xl bg-[#012169] text-[#FAF9F6] hover:bg-[#002B7F] border border-white/20 px-4 py-2 font-mono text-[11px] font-bold uppercase shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+                onClick={handleCloseModal}
+                className="absolute top-4 right-4 z-40 p-2.5 rounded-full bg-white/20 text-white hover:bg-[#A10728] transition-all cursor-pointer backdrop-blur-md shadow-md"
+                title="Close Viewer"
               >
-                <Calendar className="h-3.5 w-3.5 text-[#FAF9F6]" />
-                <span>{inquirySent ? "PROSPECTUS REQUESTED ✓" : "REQUEST PROSPECTUS"}</span>
+                <X className="h-5 w-5" />
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+
+              {/* Left Column: High-Res Vertical Video Player */}
+              <div className="relative md:w-[50%] aspect-[9/16] md:aspect-auto md:min-h-[580px] bg-black flex items-center justify-center">
+                <video
+                  ref={modalVideoRef}
+                  src={selectedProperty.videoSrc}
+                  poster={selectedProperty.image}
+                  autoPlay
+                  loop
+                  playsInline
+                  muted={isMuted}
+                  className="w-full h-full object-cover"
+                />
+
+                {/* Video Play/Pause & Sound Toggles */}
+                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-30">
+                  <button
+                    onClick={() => {
+                      if (modalVideoRef.current) {
+                        if (isPlaying) {
+                          modalVideoRef.current.pause();
+                        } else {
+                          modalVideoRef.current.play();
+                        }
+                        setIsPlaying(!isPlaying);
+                      }
+                    }}
+                    className="p-3 rounded-full bg-black/60 text-white hover:bg-[#A10728] transition-all cursor-pointer backdrop-blur-md"
+                  >
+                    {isPlaying ? (
+                      <Pause className="h-5 w-5" />
+                    ) : (
+                      <Play className="h-5 w-5 fill-current" />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setIsMuted(!isMuted)}
+                    className="p-3 rounded-full bg-black/60 text-white hover:bg-[#A10728] transition-all cursor-pointer backdrop-blur-md"
+                  >
+                    {isMuted ? (
+                      <VolumeX className="h-5 w-5" />
+                    ) : (
+                      <Volume2 className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Property Intelligence & Dossier Information */}
+              <div className="md:w-[50%] p-6 sm:p-8 flex flex-col justify-between bg-[#0E1B33] overflow-y-auto">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="h-2 w-2 rounded-full bg-[#A10728] animate-pulse" />
+                    <span className="text-xs font-bold text-[#A10728] tracking-[0.2em] uppercase">
+                      {selectedProperty.categoryLabel}
+                    </span>
+                  </div>
+
+                  <h3 className="text-3xl font-black uppercase text-white leading-tight mb-2">
+                    {selectedProperty.title}
+                  </h3>
+
+                  <p className="text-sm font-medium text-white/80 leading-relaxed mb-6 border-l-2 border-[#A10728] pl-3 py-1">
+                    {selectedProperty.description}
+                  </p>
+
+                  {/* Telemetry Matrix Grid */}
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <div className="p-3 rounded-xl border border-white/10 bg-white/5 flex flex-col">
+                      <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
+                        Asset Valuation
+                      </span>
+                      <span className="text-lg font-mono font-bold text-[#A10728]">
+                        {selectedProperty.price}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-white/10 bg-white/5 flex flex-col">
+                      <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
+                        Gross Leasable Area
+                      </span>
+                      <span className="text-lg font-mono font-bold text-white">
+                        {selectedProperty.sqft}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-white/10 bg-white/5 flex flex-col">
+                      <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
+                        Building Floors
+                      </span>
+                      <span className="text-lg font-mono font-bold text-white">
+                        {selectedProperty.floors} Levels
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl border border-white/10 bg-white/5 flex flex-col">
+                      <span className="text-[10px] text-white/60 uppercase font-bold tracking-wider">
+                        Tenancy Status
+                      </span>
+                      <span className="text-sm font-bold text-white truncate">
+                        {selectedProperty.tenancy}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Key Highlights */}
+                  <div className="mb-6">
+                    <span className="text-xs font-bold uppercase tracking-wider text-white/70 block mb-2">
+                      Key Highlights:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedProperty.features.map((feat, fIdx) => (
+                        <span
+                          key={fIdx}
+                          className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-white/10 border border-white/15 text-white"
+                        >
+                          {feat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Consultation Action */}
+                <div className="pt-4 border-t border-white/15 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs text-white/70">
+                    <MapPin className="h-3.5 w-3.5 text-[#A10728]" />
+                    <span className="truncate max-w-[180px]">
+                      {selectedProperty.location}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={handleCloseModal}
+                    className="px-5 py-2.5 rounded-full bg-[#A10728] text-white text-xs font-bold uppercase tracking-wider hover:bg-[#720808] transition-all cursor-pointer shadow-md"
+                  >
+                    Return to Reels
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

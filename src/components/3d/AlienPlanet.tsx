@@ -1,3 +1,4 @@
+// src/components/3d/AlienPlanet.tsx
 "use client";
 
 import React, { useMemo } from "react";

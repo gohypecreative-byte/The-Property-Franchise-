@@ -1,3 +1,4 @@
+// src/components/LandingExperience.tsx
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
@@ -11,6 +12,7 @@ import { ContactSection } from "./ui/ContactSection";
 import { Footer } from "./ui/Footer";
 import { scifiAudio } from "@/lib/audio";
 import { X, Sparkles, Film, Building2, Play, Mail, Undo2 } from "lucide-react";
+import Lenis from "lenis";
 
 // Dynamically import SceneCanvas with SSR disabled for safe WebGL initialization
 const SceneCanvas = dynamic(
@@ -37,18 +39,37 @@ export function LandingExperience() {
   const [isVideoOpen, setIsVideoOpen] = useState(false);
   const modalScrollRef = useRef<HTMLDivElement>(null);
 
-  // Keyboard shortcut: Escape smoothly dismisses any open modal or video
+  // Lenis Smooth Scroll Initialization for active modal scroll containers
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        scifiAudio.playHoloBeep(720, 0.06);
-        setActiveModal("none");
-        setIsVideoOpen(false);
+    if (activeModal === "none") return;
+
+    let lenisInstance: Lenis | null = null;
+    let rafId: number | null = null;
+
+    const timer = setTimeout(() => {
+      const container = modalScrollRef.current;
+      if (!container) return;
+
+      lenisInstance = new Lenis({
+        wrapper: container,
+        content: (container.firstElementChild as HTMLElement) || container,
+        smoothWheel: true,
+        lerp: 0.1,
+      });
+
+      function raf(time: number) {
+        lenisInstance?.raf(time);
+        rafId = requestAnimationFrame(raf);
       }
+      rafId = requestAnimationFrame(raf);
+    }, 60);
+
+    return () => {
+      clearTimeout(timer);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (lenisInstance) lenisInstance.destroy();
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [activeModal]);
 
   // Character 1 (Sue Storm) click -> Commercial Archives & Reels
   const handleReelsClick = () => {
@@ -107,7 +128,7 @@ export function LandingExperience() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden scroll-smooth bg-[#012169]/50 backdrop-blur-md selection:bg-[#A10728] selection:text-[#FAF9F6]"
+            className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden bg-[#012169]/50 backdrop-blur-md selection:bg-[#A10728] selection:text-[#FAF9F6]"
             role="dialog"
             aria-modal="true"
           >
@@ -122,18 +143,38 @@ export function LandingExperience() {
               }}
               className="relative min-h-screen bg-[#FCF8F3] text-[#012169] shadow-2xl flex flex-col justify-between"
             >
-              {/* Sticky Top Header Bar */}
+              {/* Sticky Top Header Bar (Website Logo & U-turn Return Arrow) */}
               <div
                 className="sticky top-0 z-50 flex items-center justify-between border-b border-[#012169]/10 bg-[#FCF8F3]/95 px-3 sm:px-8 py-2.5 sm:py-3.5 backdrop-blur-md shadow-sm gap-2"
               >
-                {/* Active Section Identity */}
-                <div className="flex items-center min-w-0 pr-2">
-                  <span className="font-['Condor_Med_Cond',sans-serif] text-xs sm:text-base font-extrabold uppercase tracking-wider text-[#012169] truncate">
-                    {activeModal === "reels" && <>Commercial Archives <span className="text-[#A10728]">&</span> Video Reels</>}
-                    {activeModal === "details" && <>Commercial Services <span className="text-[#A10728]">&</span> Trophy Showcase</>}
-                    {activeModal === "contact" && <>Franchise Enquiries <span className="text-[#A10728]">&</span> Consultations</>}
-                  </span>
-                </div>
+                {/* Active Section Identity: Clickable Website Logo (Redirects to Homepage) */}
+                <a
+                  href="/"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleCloseModal();
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="flex items-center gap-2.5 sm:gap-3 group cursor-pointer transition-transform duration-300 hover:scale-[1.02]"
+                  title="The Property Franchise - Return to Homepage"
+                  aria-label="The Property Franchise - Return to Homepage"
+                >
+                  <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full overflow-hidden border border-[#012169]/20 shadow-xs flex-shrink-0 group-hover:border-[#A10728] transition-colors">
+                    <img
+                      src="/tpf_logo.jpg"
+                      alt="The Property Franchise Emblem"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-['Condor_Medium_Condensed_Italic',sans-serif] italic text-xs sm:text-sm font-black tracking-widest text-[#012169] group-hover:text-[#A10728] uppercase leading-tight transition-colors">
+                      THE PROPERTY FRANCHISE
+                    </span>
+                    <span className="font-['Condor_Medium_Condensed_Italic',sans-serif] italic text-[9px] tracking-widest text-[#A10728] uppercase font-bold">
+                      COMMERCIAL NETWORK
+                    </span>
+                  </div>
+                </a>
 
                 {/* Return Button with U-turn Arrow (↩) Icon */}
                 <button
@@ -155,7 +196,10 @@ export function LandingExperience() {
 
                 {/* 2. Details & Showcase View (Johnny Storm) */}
                 {activeModal === "details" && (
-                  <WebsiteDetailsSection scrollContainerRef={modalScrollRef} />
+                  <WebsiteDetailsSection
+                    scrollContainerRef={modalScrollRef}
+                    onClose={handleCloseModal}
+                  />
                 )}
 
                 {/* 3. Contact View (Ben Grimm) */}
@@ -178,8 +222,6 @@ export function LandingExperience() {
       <RealEstateIntroVideo
         isOpen={isVideoOpen}
         onClose={() => setIsVideoOpen(false)}
-        companyName="THE PROPERTY FRANCHISE"
-        tagline="COMMERCIAL REAL ESTATE FRANCHISE NETWORK & GLOBAL TERRITORIES"
       />
 
       {/* Mobile Quick-Action Command Dock (Bridge Touch Controls) */}

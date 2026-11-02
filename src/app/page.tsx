@@ -1,3 +1,4 @@
+// src/app/page.tsx
 import { LandingExperience } from "@/components/LandingExperience";
 
 export default function Home() {

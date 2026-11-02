@@ -1,3 +1,4 @@
+// src/components/3d/Spaceship.tsx
 "use client";
 
 import React, { useRef } from "react";

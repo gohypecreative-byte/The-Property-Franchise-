@@ -27,7 +27,7 @@ export function FeatureCard({
           </span>
         )}
       </div>
-      <h3 className="mt-4 text-lg font-serif font-bold text-[#F3E8D2] transition-colors group-hover:text-[#F3E8D2]">
+      <h3 className="mt-4 text-lg font-['Condor_Medium_Condensed_Italic',sans-serif] italic font-bold text-[#F3E8D2] transition-colors group-hover:text-[#F3E8D2]">
         {title}
       </h3>
       <p className="mt-2 text-sm leading-relaxed text-[#F3E8D2]/80 font-sans">

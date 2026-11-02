@@ -262,7 +262,7 @@ export function FranchisePlanetsSection({ onSelectTerritory }: FranchisePlanetsS
           }}
           className="flex flex-col items-center text-center will-change-transform"
         >
-          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-serif font-bold uppercase tracking-wider text-[#F3E8D2] text-center max-w-3xl mx-auto px-4">
+          <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-['Condor_Medium_Condensed_Italic',sans-serif] italic font-bold uppercase tracking-wider text-[#F3E8D2] text-center max-w-3xl mx-auto px-4">
             COMMERCIAL FRANCHISE PLANETS
           </h2>
         </div>
@@ -527,7 +527,7 @@ export function FranchisePlanetsSection({ onSelectTerritory }: FranchisePlanetsS
                   <Sparkles className="h-3.5 w-3.5" />
                   {selectedTerritory.specialty}
                 </span>
-                <h3 className="mt-1 text-2xl font-serif font-black text-[#F3E8D2]">
+                <h3 className="mt-1 text-2xl font-['Condor_Medium_Condensed_Italic',sans-serif] italic font-black text-[#F3E8D2]">
                   {selectedTerritory.name}
                 </h3>
                 <p className="mt-2.5 text-xs text-[#F3E8D2]/80 leading-relaxed font-sans">

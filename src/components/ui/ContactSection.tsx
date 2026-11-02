@@ -1,14 +1,26 @@
+// src/components/ui/ContactSection.tsx
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { useInView } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
-  Send,
+  ArrowUpRight,
   CheckCircle2,
-  ArrowRight,
+  Sparkles,
+  Send,
+  Radio,
+  Building2,
+  ShieldCheck,
   ChevronDown,
+  Globe,
 } from "lucide-react";
 import { scifiAudio } from "@/lib/audio";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 export interface ContactSectionProps {
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
@@ -16,376 +28,503 @@ export interface ContactSectionProps {
 }
 
 export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const leftColRef = useRef<HTMLDivElement>(null);
+  const formPanelRef = useRef<HTMLDivElement>(null);
+  const submitBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Form submission state
-  const [formSubmitted, setFormSubmitted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Form input state
   const [formData, setFormData] = useState({
-    name: "",
+    fullName: "",
     email: "",
-    interest: "Private Commercial Acquisition Mandate",
-    note: "",
+    phone: "",
+    company: "",
+    projectType: "Trophy Office Tower Acquisition ($100M+)",
   });
 
-  // Door opening state: starts closed on initial mount, automatically swings open upon entry
-  const [isOpen, setIsOpen] = useState(false);
-  const [isHoveringDoor, setIsHoveringDoor] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [referenceId, setReferenceId] = useState("");
 
-  // Trigger when entering the section
-  const isInView = useInView(containerRef, {
-    root: scrollContainerRef,
-    once: false,
-    amount: 0.15,
-  });
+  // Mouse tracking for subtle ambient spotlight & magnetic button
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [btnOffset, setBtnOffset] = useState({ x: 0, y: 0 });
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isInView) {
-      // Small natural delay so user notices the closed estate door before it automatically swings open
-      timer = setTimeout(() => {
-        setIsOpen(true);
-        scifiAudio.playHoloBeep(740, 0.08);
-      }, 250);
-    } else {
-      setIsOpen(false);
+  // Handle ambient mouse glow
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = sectionRef.current?.getBoundingClientRect();
+    if (rect) {
+      setMousePos({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
     }
-    return () => clearTimeout(timer);
-  }, [isInView]);
 
-  // Interactive toggle when clicking the door or button
-  const handleToggleDoor = () => {
-    const nextState = !isOpen;
-    setIsOpen(nextState);
-    scifiAudio.playHoloBeep(nextState ? 740 : 420, 0.08);
+    // Magnetic Submit Button physics
+    if (submitBtnRef.current) {
+      const btnRect = submitBtnRef.current.getBoundingClientRect();
+      const btnCenterX = btnRect.left + btnRect.width / 2;
+      const btnCenterY = btnRect.top + btnRect.height / 2;
+      const dist = Math.hypot(e.clientX - btnCenterX, e.clientY - btnCenterY);
+
+      if (dist < 120) {
+        const pull = 0.18;
+        setBtnOffset({
+          x: (e.clientX - btnCenterX) * pull,
+          y: (e.clientY - btnCenterY) * pull,
+        });
+      } else {
+        setBtnOffset({ x: 0, y: 0 });
+      }
+    }
   };
 
+  const handleMouseLeave = () => {
+    setBtnOffset({ x: 0, y: 0 });
+  };
+
+  // GSAP Entrance & Parallax Animations
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const scroller = scrollContainerRef?.current || window;
+
+    // Staggered reveal timeline
+    const ctx = gsap.context(() => {
+      // 1. Left Column Stagger
+      if (leftColRef.current) {
+        const elements = leftColRef.current.children;
+        gsap.fromTo(
+          elements,
+          { y: 35, opacity: 0 },
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.8,
+            stagger: 0.1,
+            ease: "power2.out",
+            scrollTrigger: {
+              trigger: section,
+              scroller: scroller,
+              start: "top 80%",
+              toggleActions: "play none none reverse",
+            },
+          }
+        );
+      }
+
+      // 2. Right Column Form Panel Slide-In
+      if (formPanelRef.current) {
+        gsap.fromTo(
+          formPanelRef.current,
+          { x: 45, opacity: 0, scale: 0.96 },
+          {
+            x: 0,
+            opacity: 1,
+            scale: 1,
+            duration: 0.9,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: section,
+              scroller: scroller,
+              start: "top 75%",
+              toggleActions: "play none none reverse",
+            },
+          }
+        );
+      }
+
+      // 3. Subtle background telemetry parallax
+      const telemetryElements = section.querySelectorAll(".telemetry-parallax");
+      if (telemetryElements.length > 0) {
+        gsap.to(telemetryElements, {
+          y: -40,
+          ease: "none",
+          scrollTrigger: {
+            trigger: section,
+            scroller: scroller,
+            start: "top bottom",
+            end: "bottom top",
+            scrub: true,
+          },
+        });
+      }
+    }, section);
+
+    return () => ctx.revert();
+  }, [scrollContainerRef]);
+
+  // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     scifiAudio.playHoloBeep(980, 0.1);
     setIsSubmitting(true);
 
+    // Generate confidential mandate reference docket
+    const randNum = Math.floor(1000 + Math.random() * 9000);
+    const docket = `TPF-MANDATE-2026-${randNum}`;
+    setReferenceId(docket);
+
     setTimeout(() => {
       setIsSubmitting(false);
-      setFormSubmitted(true);
-      scifiAudio.playHoloBeep(1200, 0.15);
-    }, 600);
+      setIsSubmitted(true);
+      scifiAudio.playHoloBeep(1350, 0.16);
+    }, 1100);
+  };
+
+  const handleResetForm = () => {
+    scifiAudio.playHoloBeep(850, 0.08);
+    setFormData({
+      fullName: "",
+      email: "",
+      phone: "",
+      company: "",
+      projectType: "Trophy Office Tower Acquisition ($100M+)",
+    });
+    setIsSubmitted(false);
   };
 
   return (
     <section
       id="contact-us"
-      ref={containerRef}
-      className="relative z-20 bg-[#FCF8F3] text-[#012169] selection:bg-[#A10728] selection:text-[#FCF8F3] min-h-[calc(100vh-52px)] w-full flex items-center justify-center py-8 sm:py-12 lg:py-16 px-4 sm:px-8 lg:px-14 select-none overflow-hidden"
+      ref={sectionRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className="relative z-20 bg-[#FCF8F3] text-[#012169] selection:bg-[#A10728] selection:text-[#FCF8F3] font-['Condor_Medium_Condensed_Italic',sans-serif] italic min-h-[calc(100vh-52px)] w-full flex items-center justify-center py-10 sm:py-16 lg:py-20 px-4 sm:px-8 lg:px-14 select-none overflow-hidden"
     >
+      {/* --------------------------------------------------------------------
+          1. FUTURISTIC CONTROL ROOM BACKGROUND & HUD TELEMETRY
+          -------------------------------------------------------------------- */}
+      {/* Mouse Ambient Red/Navy Spotlight */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
+        style={{
+          background: `radial-gradient(750px circle at ${mousePos.x}px ${mousePos.y}px, rgba(161, 7, 40, 0.06), transparent 75%)`,
+        }}
+      />
+
       {/* Subtle Architectural Grid Texture */}
-      <div className="absolute inset-0 pointer-events-none opacity-25 bg-[linear-gradient(to_right,rgba(1,33,105,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(1,33,105,0.04)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+      <div className="absolute inset-0 pointer-events-none opacity-25 bg-[linear-gradient(to_right,rgba(1,33,105,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(1,33,105,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
 
-      <div className="mx-auto w-full max-w-7xl relative z-10">
+      {/* Rotating Control Room Radar Overlay (Low Opacity Ambient) */}
+      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] sm:w-[900px] h-[600px] sm:h-[900px] rounded-full border border-[#012169]/8 opacity-40 animate-[spin_60s_linear_infinite]" />
+      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full border border-dashed border-[#A10728]/15 opacity-40 animate-[spin_30s_linear_infinite_reverse]" />
+
+
+      {/* Main Two-Column Layout */}
+      <div className="mx-auto w-full max-w-7xl relative z-10 pt-4 sm:pt-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 lg:gap-14 items-center">
-          {/* ====================================================================
-              LEFT COLUMN: ARCHED FRAME WITH AUTOMATIC ENTRY 3D DOOR ANIMATION
-              ==================================================================== */}
-          <div className="lg:col-span-5 flex flex-col items-center justify-center">
-            {/* Grand Arched Doorway Frame */}
-            <div
-              onClick={handleToggleDoor}
-              onMouseEnter={() => setIsHoveringDoor(true)}
-              onMouseLeave={() => setIsHoveringDoor(false)}
-              className="group/door relative w-full max-w-[280px] sm:max-w-[340px] md:max-w-[380px] lg:max-w-[410px] aspect-[3/4.6] rounded-t-full rounded-b-2xl overflow-hidden border-[6px] sm:border-[8px] border-[#7A1B2E] shadow-[0_20px_60px_rgba(122,27,46,0.22)] bg-[#7A1B2E] cursor-pointer select-none transition-transform duration-300 hover:scale-[1.01]"
-              title="Click to open / close the estate door"
-            >
-              {/* 1. Underlying Estate Image: Townhouse Facade with Georgian Sash Windows & Pink Door */}
-              <div className="absolute inset-0 w-full h-full">
-                <img
-                  src="/contact_arch_house.jpg"
-                  alt="The House - 14 Linden Row Townhouse Facade"
-                  className="w-full h-full object-cover object-center"
-                />
-                {/* Natural Light Vignette & Depth Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0E1B33]/60 via-transparent to-black/15 pointer-events-none" />
-              </div>
-
-              {/* 2. Interior Shadow (smoothly fades as doors open and light pours in) */}
-              <div
-                className="absolute inset-0 bg-[#0E1B33] pointer-events-none transition-opacity duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]"
-                style={{ opacity: isOpen ? 0 : 0.75 }}
-              />
-
-              {/* 3. DOUBLE ARCHED DOORS (3D Perspective Container) */}
-              <div
-                className="absolute inset-0 flex w-full h-full pointer-events-none"
-                style={{ perspective: "1200px" }}
-              >
-                {/* LEFT DOOR HALF */}
-                <div
-                  className="relative w-1/2 h-full rounded-tl-full bg-gradient-to-r from-[#620B1E] via-[#731024] to-[#801328] border-r border-[#FAF9F6]/25 shadow-2xl transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]"
-                  style={{
-                    transformOrigin: "left center",
-                    transform: isOpen
-                      ? "perspective(1200px) rotateY(-88deg) translateX(-16%)"
-                      : isHoveringDoor
-                      ? "perspective(1200px) rotateY(-12deg) translateX(-2%)"
-                      : "perspective(1200px) rotateY(0deg) translateX(0%)",
-                    boxShadow: isOpen
-                      ? "10px 0 30px rgba(0,0,0,0.45)"
-                      : "none",
-                  }}
-                >
-                  {/* Carved Architectural Inner Panel Molding */}
-                  <div className="absolute inset-3 sm:inset-4 rounded-tl-full border border-white/20 shadow-inner pointer-events-none" />
-                  <div className="absolute inset-6 sm:inset-7 rounded-tl-full border border-black/15 pointer-events-none" />
-
-                  {/* Classic Brass Door Handle */}
-                  <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 flex items-center">
-                    <div className="h-7 w-2 sm:h-9 sm:w-2.5 rounded-full bg-gradient-to-r from-[#D4AF37] via-[#FFF8DC] to-[#AA771C] shadow-md border border-[#8B6508]" />
-                  </div>
-                </div>
-
-                {/* RIGHT DOOR HALF */}
-                <div
-                  className="relative w-1/2 h-full rounded-tr-full bg-gradient-to-l from-[#620B1E] via-[#731024] to-[#801328] border-l border-[#FAF9F6]/25 shadow-2xl transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]"
-                  style={{
-                    transformOrigin: "right center",
-                    transform: isOpen
-                      ? "perspective(1200px) rotateY(88deg) translateX(16%)"
-                      : isHoveringDoor
-                      ? "perspective(1200px) rotateY(12deg) translateX(2%)"
-                      : "perspective(1200px) rotateY(0deg) translateX(0%)",
-                    boxShadow: isOpen
-                      ? "-10px 0 30px rgba(0,0,0,0.45)"
-                      : "none",
-                  }}
-                >
-                  {/* Carved Architectural Inner Panel Molding */}
-                  <div className="absolute inset-3 sm:inset-4 rounded-tr-full border border-white/20 shadow-inner pointer-events-none" />
-                  <div className="absolute inset-6 sm:inset-7 rounded-tr-full border border-black/15 pointer-events-none" />
-
-                  {/* Classic Brass Door Handle */}
-                  <div className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 flex items-center">
-                    <div className="h-7 w-2 sm:h-9 sm:w-2.5 rounded-full bg-gradient-to-l from-[#D4AF37] via-[#FFF8DC] to-[#AA771C] shadow-md border border-[#8B6508]" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Center Seam when Doors are Closed */}
-              {!isOpen && !isHoveringDoor && (
-                <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-white/20 pointer-events-none transition-opacity duration-300" />
-              )}
+          {/* ==================================================================
+              LEFT COLUMN: CONTACT INFORMATION & SYNDICATE IDENTITY
+              ================================================================== */}
+          <div
+            ref={leftColRef}
+            className="lg:col-span-6 flex flex-col justify-center space-y-6 sm:space-y-8"
+          >
+            {/* Main Headline */}
+            <div>
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black uppercase tracking-tight text-[#012169] leading-[0.98]">
+                Let&apos;s Build <br />
+                <span className="text-[#A10728] font-normal italic">
+                  Something Extraordinary.
+                </span>
+              </h1>
+              <p className="mt-4 text-sm sm:text-base text-[#012169]/80 leading-relaxed font-medium max-w-xl">
+                The Property Franchise orchestrates confidential off-market commercial property transactions, regional master territory franchise licensing, and direct capital syndication with leading institutional partners worldwide.
+              </p>
             </div>
           </div>
 
-          {/* ====================================================================
-              RIGHT COLUMN: EDITORIAL "COME OVER" HEADLINE, METADATA & FORM
-              ==================================================================== */}
-          <div className="lg:col-span-7 flex flex-col justify-center">
-            {/* Top Tagline */}
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#A10728] animate-pulse" />
-              <span className="font-sans text-[10px] sm:text-xs font-bold text-[#A10728] tracking-[0.2em] uppercase">
-                EDITORIAL ENQUIRIES // PRIVATE MANDATES
-              </span>
-            </div>
-
-            {/* Big Editorial Headline matching Reference: "Come over" */}
-            <h2 className="font-['Condor_Med_Cond',serif] text-5xl sm:text-6xl lg:text-7xl font-light text-[#012169] tracking-tight leading-none">
-              Come <span className="font-bold text-[#A10728]">over</span>
-            </h2>
-
-            {/* Metadata 2-Column Grid matching Reference */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 my-5 sm:my-6 text-[#012169]">
-              {/* Column 1: The House & Write */}
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-sans text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-[#012169]/70">
-                    THE HOUSE
-                  </h3>
-                  <p className="mt-1 font-sans text-xs sm:text-sm text-[#012169] font-medium leading-relaxed">
-                    14 Linden Row, Level 42 Commercial Tower
-                    <br />
-                    Sydney CBD, NSW 2000
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="font-sans text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-[#012169]/70">
-                    WRITE
-                  </h3>
-                  <a
-                    href="mailto:contact@thepropertyfranchise.com"
-                    className="mt-1 inline-block font-sans text-xs sm:text-sm font-semibold text-[#012169] underline decoration-[#012169]/30 hover:decoration-[#A10728] hover:text-[#A10728] transition-colors"
-                  >
-                    contact@thepropertyfranchise.com
-                  </a>
-                </div>
+          {/* ==================================================================
+              RIGHT COLUMN: FUTURISTIC INTERACTIVE CONTACT FORM PANEL
+              ================================================================== */}
+          <div ref={formPanelRef} className="lg:col-span-6">
+            <div className="relative rounded-[28px] sm:rounded-[32px] border-[2px] border-[#012169]/20 bg-white/80 backdrop-blur-xl shadow-[0_25px_60px_rgba(1,33,105,0.18)] p-6 sm:p-8 lg:p-10 select-none overflow-hidden">
+              {/* Form Panel Header */}
+              <div className="border-b border-[#012169]/15 pb-4 mb-6">
+                <h3 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-[#012169]">
+                  Register Capital Mandate
+                </h3>
               </div>
 
-              {/* Column 2: Hours & Call */}
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-sans text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-[#012169]/70">
-                    HOURS
-                  </h3>
-                  <p className="mt-1 font-sans text-xs sm:text-sm text-[#012169] font-medium leading-relaxed">
-                    Mon–Fri 7:30–23:00
-                    <br />
-                    Sat–Sun 9:00–23:00
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="font-sans text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-[#012169]/70">
-                    CALL
-                  </h3>
-                  <a
-                    href="tel:+13108449200"
-                    className="mt-1 inline-block font-sans text-xs sm:text-sm font-semibold text-[#012169] underline decoration-[#012169]/30 hover:decoration-[#A10728] hover:text-[#A10728] transition-colors"
+              {/* Form Content / Success Message Switch */}
+              <AnimatePresence mode="wait">
+                {isSubmitted ? (
+                  /* Success Confirmation Dossier */
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94 }}
+                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                    className="py-6 flex flex-col items-center text-center space-y-4"
                   >
-                    +1 (310) 844-9200 / +44 20 0000 0000
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* Elevated Form Container matching Reference Corner Styling */}
-            <div className="relative rounded-tl-[3rem] sm:rounded-tl-[3.5rem] rounded-tr-2xl rounded-b-2xl border border-[#A10728]/15 bg-[#FAF3F0] p-5 sm:p-7 lg:p-8 shadow-sm text-[#012169]">
-              {formSubmitted ? (
-                <div className="py-8 sm:py-10 flex flex-col items-center text-center animate-in fade-in duration-300">
-                  <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-[#A10728] text-white shadow-md">
-                    <CheckCircle2 className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
-                  </div>
-                  <h3 className="mt-4 text-xl sm:text-2xl font-['Condor_Med_Cond',sans-serif] font-bold text-[#012169]">
-                    Enquiry Registered
-                  </h3>
-                  <p className="mt-2 text-xs sm:text-sm text-[#012169]/80 max-w-md font-sans leading-relaxed">
-                    Thank you for contacting The Property Franchise. A Senior Commercial Director will review your mandate and respond shortly.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormSubmitted(false);
-                      setFormData({
-                        name: "",
-                        email: "",
-                        interest: "Private Commercial Acquisition Mandate",
-                        note: "",
-                      });
-                    }}
-                    className="mt-6 rounded-full border border-[#012169]/20 bg-[#012169] px-6 py-2.5 font-mono text-[11px] font-bold uppercase tracking-wider text-[#FAF9F6] hover:bg-[#A10728] transition-colors cursor-pointer shadow-md"
-                  >
-                    Send Another Message
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-                  {/* Row 1: Your Name & Email */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                    <div>
-                      <label className="block font-sans text-[10px] font-bold uppercase tracking-[0.2em] text-[#A10728] mb-1">
-                        YOUR NAME <span className="text-[#A10728]">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Your full name"
-                        value={formData.name}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
-                        className="w-full bg-transparent border-b border-[#012169]/25 pb-2 pt-1 font-sans text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none focus:border-[#A10728] transition-colors"
-                      />
+                    <div className="h-16 w-16 rounded-full bg-emerald-500/10 border-2 border-emerald-600 text-emerald-600 flex items-center justify-center shadow-lg">
+                      <CheckCircle2 className="h-8 w-8" />
                     </div>
 
                     <div>
-                      <label className="block font-sans text-[10px] font-bold uppercase tracking-[0.2em] text-[#A10728] mb-1">
-                        EMAIL <span className="text-[#A10728]">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        placeholder="name@company.com"
-                        value={formData.email}
-                        onChange={(e) =>
-                          setFormData({ ...formData, email: e.target.value })
-                        }
-                        className="w-full bg-transparent border-b border-[#012169]/25 pb-2 pt-1 font-sans text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none focus:border-[#A10728] transition-colors"
-                      />
+                      <span className="text-xs font-mono font-bold text-[#A10728] tracking-widest uppercase block mb-1">
+                        DOCKET: {referenceId}
+                      </span>
+                      <h4 className="text-2xl sm:text-3xl font-black uppercase text-[#012169]">
+                        Transmission Received
+                      </h4>
+                      <p className="mt-2 text-xs sm:text-sm text-[#012169]/75 max-w-md mx-auto">
+                        Your commercial property mandate enquiry has been routed directly to our Managing Partner Desk. A senior partner will initiate private advisory contact within 2 hours.
+                      </p>
                     </div>
-                  </div>
 
-                  {/* Row 2: I'd Like (Custom Dropdown) */}
-                  <div>
-                    <label className="block font-sans text-[10px] font-bold uppercase tracking-[0.2em] text-[#A10728] mb-1">
-                      I&apos;D LIKE
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={formData.interest}
-                        onChange={(e) =>
-                          setFormData({ ...formData, interest: e.target.value })
-                        }
-                        className="w-full appearance-none bg-transparent border-b border-[#012169]/25 pb-2 pt-1 font-sans text-xs sm:text-sm text-[#012169] focus:outline-none focus:border-[#A10728] cursor-pointer pr-8"
-                      >
-                        <option className="bg-white text-[#012169]">
-                          Private Commercial Acquisition Mandate
-                        </option>
-                        <option className="bg-white text-[#012169]">
-                          Class-A Commercial Office Towers
-                        </option>
-                        <option className="bg-white text-[#012169]">
-                          Corporate Business Campus Inquiry
-                        </option>
-                        <option className="bg-white text-[#012169]">
-                          Industrial &amp; Logistics Hub Investment
-                        </option>
-                        <option className="bg-white text-[#012169]">
-                          Franchise Territory Licensing
-                        </option>
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center text-[#A10728]">
-                        <ChevronDown className="h-4 w-4" />
+                    <div className="w-full p-4 rounded-xl border border-[#012169]/15 bg-[#FCF8F3] text-left text-xs font-mono space-y-1.5">
+                      <div className="flex justify-between">
+                        <span className="text-[#012169]/60">MANDATE TYPE:</span>
+                        <span className="font-bold text-[#012169] truncate max-w-[220px]">
+                          {formData.projectType}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#012169]/60">REPRESENTATIVE:</span>
+                        <span className="font-bold text-[#012169]">
+                          {formData.fullName || "Accredited Investor"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#012169]/60">STATUS:</span>
+                        <span className="font-bold text-emerald-600">
+                          LOGGED &amp; ALLOCATED
+                        </span>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Row 3: A Note */}
-                  <div>
-                    <label className="block font-sans text-[10px] font-bold uppercase tracking-[0.2em] text-[#A10728] mb-1">
-                      A NOTE
-                    </label>
-                    <textarea
-                      rows={2}
-                      placeholder="Tell us about your mandate or acquisition parameters..."
-                      value={formData.note}
-                      onChange={(e) =>
-                        setFormData({ ...formData, note: e.target.value })
-                      }
-                      className="w-full bg-transparent border-b border-[#012169]/25 pb-2 pt-1 font-sans text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none focus:border-[#A10728] transition-colors resize-none"
-                    />
-                  </div>
-
-                  {/* Bottom Row: Pill Submit CTA matching Reference */}
-                  <div className="pt-2 flex items-center justify-end">
                     <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="rounded-full bg-[#A10728] hover:bg-[#800D26] text-[#FAF9F6] px-7 py-3 font-sans text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center gap-2 group cursor-pointer active:scale-95 disabled:opacity-60"
+                      onClick={handleResetForm}
+                      className="mt-2 px-6 py-2.5 rounded-full bg-[#012169] text-[#FAF9F6] text-xs font-bold uppercase tracking-wider hover:bg-[#A10728] transition-colors cursor-pointer shadow-md"
                     >
-                      {isSubmitting ? (
-                        <span className="inline-flex items-center gap-2">
-                          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#FAF9F6] border-t-transparent" />
-                          <span>SENDING...</span>
-                        </span>
-                      ) : (
-                        <>
-                          <span>SEND ENQUIRY</span>
-                          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
-                        </>
-                      )}
+                      Submit Another Mandate
                     </button>
-                  </div>
-                </form>
-              )}
+                  </motion.div>
+                ) : (
+                  /* Interactive Input Form */
+                  <motion.form
+                    key="form"
+                    onSubmit={handleSubmit}
+                    className="space-y-4 sm:space-y-5"
+                  >
+                    {/* Row 1: Full Name & Email */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Full Name */}
+                      <div className="relative">
+                        <label
+                          htmlFor="fullName"
+                          className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
+                            focusedField === "fullName"
+                              ? "text-[#A10728]"
+                              : "text-[#012169]/70"
+                          }`}
+                        >
+                          Full Name *
+                        </label>
+                        <input
+                          id="fullName"
+                          type="text"
+                          required
+                          placeholder="e.g. Lord Alistair Vance"
+                          value={formData.fullName}
+                          onFocus={() => {
+                            setFocusedField("fullName");
+                            scifiAudio.playHoloBeep(850, 0.04);
+                          }}
+                          onBlur={() => setFocusedField(null)}
+                          onChange={(e) =>
+                            setFormData({ ...formData, fullName: e.target.value })
+                          }
+                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
+                        />
+                      </div>
+
+                      {/* Email */}
+                      <div className="relative">
+                        <label
+                          htmlFor="email"
+                          className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
+                            focusedField === "email"
+                              ? "text-[#A10728]"
+                              : "text-[#012169]/70"
+                          }`}
+                        >
+                          Corporate Email *
+                        </label>
+                        <input
+                          id="email"
+                          type="email"
+                          required
+                          placeholder="e.g. vance@sovereigncapital.com"
+                          value={formData.email}
+                          onFocus={() => {
+                            setFocusedField("email");
+                            scifiAudio.playHoloBeep(850, 0.04);
+                          }}
+                          onBlur={() => setFocusedField(null)}
+                          onChange={(e) =>
+                            setFormData({ ...formData, email: e.target.value })
+                          }
+                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 2: Phone Number & Company Name */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Phone Number */}
+                      <div className="relative">
+                        <label
+                          htmlFor="phone"
+                          className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
+                            focusedField === "phone"
+                              ? "text-[#A10728]"
+                              : "text-[#012169]/70"
+                          }`}
+                        >
+                          Phone Number *
+                        </label>
+                        <input
+                          id="phone"
+                          type="tel"
+                          required
+                          placeholder="e.g. +44 20 7946 0912"
+                          value={formData.phone}
+                          onFocus={() => {
+                            setFocusedField("phone");
+                            scifiAudio.playHoloBeep(850, 0.04);
+                          }}
+                          onBlur={() => setFocusedField(null)}
+                          onChange={(e) =>
+                            setFormData({ ...formData, phone: e.target.value })
+                          }
+                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
+                        />
+                      </div>
+
+                      {/* Company Name */}
+                      <div className="relative">
+                        <label
+                          htmlFor="company"
+                          className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
+                            focusedField === "company"
+                              ? "text-[#A10728]"
+                              : "text-[#012169]/70"
+                          }`}
+                        >
+                          Syndicate / Fund Entity
+                        </label>
+                        <input
+                          id="company"
+                          type="text"
+                          placeholder="e.g. Vance Global Capital REIT"
+                          value={formData.company}
+                          onFocus={() => {
+                            setFocusedField("company");
+                            scifiAudio.playHoloBeep(850, 0.04);
+                          }}
+                          onBlur={() => setFocusedField(null)}
+                          onChange={(e) =>
+                            setFormData({ ...formData, company: e.target.value })
+                          }
+                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 3: Project Type Dropdown */}
+                    <div className="relative">
+                      <label
+                        htmlFor="projectType"
+                        className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
+                          focusedField === "projectType"
+                            ? "text-[#A10728]"
+                            : "text-[#012169]/70"
+                        }`}
+                      >
+                        Project / Mandate Category *
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="projectType"
+                          value={formData.projectType}
+                          onFocus={() => {
+                            setFocusedField("projectType");
+                            scifiAudio.playHoloBeep(850, 0.04);
+                          }}
+                          onBlur={() => setFocusedField(null)}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              projectType: e.target.value,
+                            })
+                          }
+                          className="w-full appearance-none bg-transparent border-b-2 border-[#012169]/20 focus:border-[#A10728] pb-2 pt-1 text-xs sm:text-sm text-[#012169] focus:outline-none cursor-pointer pr-8 font-bold transition-all duration-300"
+                        >
+                          <option className="bg-white text-[#012169]">
+                            Trophy Office Tower Acquisition ($100M+)
+                          </option>
+                          <option className="bg-white text-[#012169]">
+                            Master Franchise Territory License
+                          </option>
+                          <option className="bg-white text-[#012169]">
+                            Commercial Corporate Business Campus
+                          </option>
+                          <option className="bg-white text-[#012169]">
+                            Industrial &amp; Logistics Hub Syndicate
+                          </option>
+                          <option className="bg-white text-[#012169]">
+                            Off-Market Private Equity Mandate
+                          </option>
+                          <option className="bg-white text-[#012169]">
+                            General Executive Consultation
+                          </option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center text-[#A10728]">
+                          <ChevronDown className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Submission Action Bar */}
+                    <div className="pt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-[#012169]/10">
+                      <div className="flex items-center gap-1.5 text-[10px] text-[#012169]/60 font-mono">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Confidential Non-Disclosure Protected</span>
+                      </div>
+
+                      {/* Magnetic Submit Button */}
+                      <button
+                        ref={submitBtnRef}
+                        type="submit"
+                        disabled={isSubmitting}
+                        style={{
+                          transform: `translate3d(${btnOffset.x}px, ${btnOffset.y}px, 0)`,
+                          transition: "transform 0.15s ease-out, background-color 0.25s, box-shadow 0.25s",
+                        }}
+                        className="w-full sm:w-auto relative group overflow-hidden px-8 py-3.5 rounded-full bg-[#012169] hover:bg-[#A10728] text-[#FAF9F6] text-xs font-black uppercase tracking-[0.18em] shadow-[0_10px_25px_rgba(1,33,105,0.25)] hover:shadow-[0_15px_35px_rgba(161,7,40,0.4)] active:scale-95 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
+                      >
+                        {isSubmitting ? (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            <span>TRANSMITTING MANDATE...</span>
+                          </span>
+                        ) : (
+                          <>
+                            <span>Send Enquiry</span>
+                            <ArrowUpRight className="h-4 w-4 text-white group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform duration-300" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </motion.form>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>

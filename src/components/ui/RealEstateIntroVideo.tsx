@@ -1,3 +1,4 @@
+// src/components/ui/RealEstateIntroVideo.tsx
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -54,7 +55,7 @@ export function RealEstateIntroVideo({
             if (videoRef.current) {
               videoRef.current.muted = true;
               setIsMuted(true);
-              videoRef.current.play().catch(() => {});
+              videoRef.current.play().catch(() => { });
             }
           });
         }
@@ -74,7 +75,7 @@ export function RealEstateIntroVideo({
   useEffect(() => {
     if (!videoRef.current) return;
     if (isPlaying) {
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => { });
     } else {
       videoRef.current.pause();
     }
@@ -134,10 +135,10 @@ export function RealEstateIntroVideo({
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(() => {});
+      containerRef.current.requestFullscreen().catch(() => { });
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
       setIsFullscreen(false);
     }
   };
@@ -204,31 +205,30 @@ export function RealEstateIntroVideo({
 
         {/* Top Header Bar */}
         <div
-          className={`absolute top-0 left-0 right-0 z-40 flex items-center justify-between p-4 sm:p-6 md:p-10 transition-opacity duration-300 bg-gradient-to-b from-[#081220]/95 via-[#081220]/60 to-transparent gap-3 ${
-            showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
+          className={`absolute top-0 left-0 right-0 z-40 flex items-center justify-between p-4 sm:p-6 md:p-10 transition-opacity duration-300 bg-gradient-to-b from-[#081220]/95 via-[#081220]/60 to-transparent gap-3 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
         >
-          {/* Company Brand Monogram & Title */}
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
-            <div className="relative flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-full overflow-hidden border border-[#A10728]/40 bg-white shadow-md backdrop-blur-md flex-shrink-0">
+          {/* Clickable Website Logo: Return to Homepage */}
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              scifiAudio.playHoloBeep(650, 0.08);
+              onClose();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="group flex items-center cursor-pointer transition-transform duration-300 hover:scale-105 select-none"
+            title="The Property Franchise - Return to Homepage"
+            aria-label="The Property Franchise - Return to Homepage"
+          >
+            <div className="relative flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-full overflow-hidden border border-white/20 shadow-md backdrop-blur-md flex-shrink-0 transition-all duration-300 group-hover:scale-105 group-hover:border-[#A10728]">
               <img
                 src="/tpf_logo.jpg"
                 alt="The Property Franchise"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
             </div>
-            <div className="min-w-0">
-              <p className="font-['Condor_Med_Cond',sans-serif] text-xs sm:text-sm font-bold tracking-widest text-[#FAF9F6] flex items-center gap-1.5 sm:gap-2 truncate">
-                <span className="truncate">{companyName}</span>
-                <span className="hidden xs:inline rounded-full bg-[#A10728] border border-[#FAF9F6]/30 px-2 py-0.5 text-[9px] sm:text-[10px] font-mono font-normal text-white flex-shrink-0">
-                  INTRO
-                </span>
-              </p>
-              <p className="hidden sm:block text-[11px] font-mono tracking-wider text-[#FAF9F6]/80 uppercase mt-0.5 truncate max-w-md">
-                {tagline}
-              </p>
-            </div>
-          </div>
+          </a>
 
           {/* Right Action: Close Button */}
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -248,9 +248,8 @@ export function RealEstateIntroVideo({
 
         {/* Bottom Video Controls HUD */}
         <div
-          className={`absolute bottom-0 left-0 right-0 z-40 p-4 sm:p-6 md:p-10 bg-gradient-to-t from-[#081220] via-[#081220]/85 to-transparent transition-opacity duration-300 ${
-            showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
+          className={`absolute bottom-0 left-0 right-0 z-40 p-4 sm:p-6 md:p-10 bg-gradient-to-t from-[#081220] via-[#081220]/85 to-transparent transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
         >
           {/* Timeline Progress Scrubber */}
           <div

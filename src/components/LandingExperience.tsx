@@ -92,7 +92,7 @@ export function LandingExperience() {
         onReset={handleCloseModal}
       />
 
-      {/* Hero: bridge footage with clickable crew (replaces the 3D scene) */}
+      {/* Hero: bridge footage with clickable crew */}
       <HeroVideoScene
         onMainCharacterClick={handleMainCharacterClick}
         onReelsClick={handleReelsClick}
@@ -148,9 +148,6 @@ export function LandingExperience() {
                     <span className="  text-xs sm:text-sm font-black tracking-widest text-[#012169] group-hover:text-[#E4002B] uppercase leading-tight transition-colors">
                       THE PROPERTY FRANCHISE
                     </span>
-                    <span className="  text-[9px] tracking-widest text-[#E4002B] uppercase font-bold">
-                      COMMERCIAL NETWORK
-                    </span>
                   </div>
                 </a>
 
@@ -190,7 +187,16 @@ export function LandingExperience() {
               </div>
 
               {/* Corporate Footer */}
-              <Footer />
+              <Footer
+                scrollContainerRef={modalScrollRef}
+                onNavigate={(target) => {
+                  if (target === "intro") handleMainCharacterClick();
+                  else if (target === "reels") handleReelsClick();
+                  else if (target === "details") handlePlanetsClick();
+                  else handleThirdCharacterClick();
+                  modalScrollRef.current?.scrollTo({ top: 0 });
+                }}
+              />
             </motion.div>
           </motion.div>
         )}

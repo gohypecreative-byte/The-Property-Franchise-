@@ -1,188 +1,73 @@
 // src/components/ui/ContactSection.tsx
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import {
-  ArrowUpRight,
-  CheckCircle2,
-  Sparkles,
-  Send,
-  Radio,
-  Building2,
-  ShieldCheck,
-  ChevronDown,
-  Globe,
-} from "lucide-react";
+import React, { useRef, useState } from "react";
+import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 import { scifiAudio } from "@/lib/audio";
-
-if (typeof window !== "undefined") {
-  gsap.registerPlugin(ScrollTrigger);
-}
 
 export interface ContactSectionProps {
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
   onOpenVideo?: () => void;
 }
 
-export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const leftColRef = useRef<HTMLDivElement>(null);
-  const formPanelRef = useRef<HTMLDivElement>(null);
-  const submitBtnRef = useRef<HTMLButtonElement>(null);
+const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
-  // Form input state
-  const [formData, setFormData] = useState({
+const ENQUIRY_TYPES = ["Franchise", "Investor", "Acquisition", "General"] as const;
+type EnquiryType = (typeof ENQUIRY_TYPES)[number];
+
+const FIELDS = [
+  { id: "fullName", label: "Name", type: "text", required: true, autoComplete: "name" },
+  { id: "email", label: "Email", type: "email", required: true, autoComplete: "email" },
+  { id: "phone", label: "Phone", type: "tel", required: false, autoComplete: "tel" },
+  { id: "company", label: "Company", type: "text", required: false, autoComplete: "organization" },
+] as const;
+
+type FieldId = (typeof FIELDS)[number]["id"];
+
+export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // Parallax: title drifts slower than the page, the disc rises and turns
+  const { scrollYProgress } = useScroll({
+    container: scrollContainerRef as React.RefObject<HTMLElement>,
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+  const titleY = useTransform(scrollYProgress, [0, 1], [30, -60]);
+  const discY = useTransform(scrollYProgress, [0, 1], [140, -140]);
+  const discRotate = useTransform(scrollYProgress, [0, 1], [-12, 12]);
+  const ruleScale = useTransform(scrollYProgress, [0.1, 0.45], [0, 1]);
+
+  const [form, setForm] = useState<Record<FieldId, string>>({
     fullName: "",
     email: "",
     phone: "",
     company: "",
-    projectType: "Trophy Office Tower Acquisition ($100M+)",
   });
-
-  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [enquiryType, setEnquiryType] = useState<EnquiryType>("Franchise");
+  const [focused, setFocused] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [referenceId, setReferenceId] = useState("");
 
-  // Mouse tracking for subtle ambient spotlight & magnetic button
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [btnOffset, setBtnOffset] = useState({ x: 0, y: 0 });
+  const viewport = { once: true, margin: "-10% 0px", root: scrollContainerRef as React.RefObject<Element> };
 
-  // Handle ambient mouse glow
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = sectionRef.current?.getBoundingClientRect();
-    if (rect) {
-      setMousePos({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      });
-    }
-
-    // Magnetic Submit Button physics
-    if (submitBtnRef.current) {
-      const btnRect = submitBtnRef.current.getBoundingClientRect();
-      const btnCenterX = btnRect.left + btnRect.width / 2;
-      const btnCenterY = btnRect.top + btnRect.height / 2;
-      const dist = Math.hypot(e.clientX - btnCenterX, e.clientY - btnCenterY);
-
-      if (dist < 120) {
-        const pull = 0.18;
-        setBtnOffset({
-          x: (e.clientX - btnCenterX) * pull,
-          y: (e.clientY - btnCenterY) * pull,
-        });
-      } else {
-        setBtnOffset({ x: 0, y: 0 });
-      }
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setBtnOffset({ x: 0, y: 0 });
-  };
-
-  // GSAP Entrance & Parallax Animations
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (!section) return;
-
-    const scroller = scrollContainerRef?.current || window;
-
-    // Staggered reveal timeline
-    const ctx = gsap.context(() => {
-      // 1. Left Column Stagger
-      if (leftColRef.current) {
-        const elements = leftColRef.current.children;
-        gsap.fromTo(
-          elements,
-          { y: 35, opacity: 0 },
-          {
-            y: 0,
-            opacity: 1,
-            duration: 0.8,
-            stagger: 0.1,
-            ease: "power2.out",
-            scrollTrigger: {
-              trigger: section,
-              scroller: scroller,
-              start: "top 80%",
-              toggleActions: "play none none reverse",
-            },
-          }
-        );
-      }
-
-      // 2. Right Column Form Panel Slide-In
-      if (formPanelRef.current) {
-        gsap.fromTo(
-          formPanelRef.current,
-          { x: 45, opacity: 0, scale: 0.96 },
-          {
-            x: 0,
-            opacity: 1,
-            scale: 1,
-            duration: 0.9,
-            ease: "power3.out",
-            scrollTrigger: {
-              trigger: section,
-              scroller: scroller,
-              start: "top 75%",
-              toggleActions: "play none none reverse",
-            },
-          }
-        );
-      }
-
-      // 3. Subtle background telemetry parallax
-      const telemetryElements = section.querySelectorAll(".telemetry-parallax");
-      if (telemetryElements.length > 0) {
-        gsap.to(telemetryElements, {
-          y: -40,
-          ease: "none",
-          scrollTrigger: {
-            trigger: section,
-            scroller: scroller,
-            start: "top bottom",
-            end: "bottom top",
-            scrub: true,
-          },
-        });
-      }
-    }, section);
-
-    return () => ctx.revert();
-  }, [scrollContainerRef]);
-
-  // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     scifiAudio.playHoloBeep(980, 0.1);
     setIsSubmitting(true);
-
-    // Generate confidential mandate reference docket
-    const randNum = Math.floor(1000 + Math.random() * 9000);
-    const docket = `TPF-MANDATE-2026-${randNum}`;
-    setReferenceId(docket);
-
     setTimeout(() => {
       setIsSubmitting(false);
       setIsSubmitted(true);
       scifiAudio.playHoloBeep(1350, 0.16);
-    }, 1100);
+    }, 900);
   };
 
-  const handleResetForm = () => {
+  const handleReset = () => {
     scifiAudio.playHoloBeep(850, 0.08);
-    setFormData({
-      fullName: "",
-      email: "",
-      phone: "",
-      company: "",
-      projectType: "Trophy Office Tower Acquisition ($100M+)",
-    });
+    setForm({ fullName: "", email: "", phone: "", company: "" });
+    setMessage("");
     setIsSubmitted(false);
   };
 
@@ -190,342 +75,252 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
     <section
       id="contact-us"
       ref={sectionRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className="relative z-20 bg-[#F7F9FC] text-[#012169] selection:bg-[#E4002B] selection:text-[#F7F9FC]  min-h-[calc(100vh-52px)] w-full flex items-center justify-center py-10 sm:py-16 lg:py-20 px-4 sm:px-8 lg:px-14 select-none overflow-hidden"
+      className="relative w-full overflow-hidden bg-[#F7F9FC] text-[#012169] selection:bg-[#E4002B] selection:text-white"
     >
-      {/* --------------------------------------------------------------------
-          1. FUTURISTIC CONTROL ROOM BACKGROUND & HUD TELEMETRY
-          -------------------------------------------------------------------- */}
-      {/* Mouse Ambient Red/Navy Spotlight */}
-      <div
-        className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-300"
-        style={{
-          background: `radial-gradient(750px circle at ${mousePos.x}px ${mousePos.y}px, rgba(228,0,43, 0.06), transparent 75%)`,
-        }}
-      />
+      {/* Top hairline drawn in as the section enters */}
+      <motion.div style={{ scaleX: ruleScale }} className="h-px w-full origin-left bg-[#012169]/20" />
 
-      {/* Subtle Architectural Grid Texture */}
-      <div className="absolute inset-0 pointer-events-none opacity-25 bg-[linear-gradient(to_right,rgba(1,33,105,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(1,33,105,0.05)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+      <div className="relative mx-auto max-w-[1600px] px-5 pt-8 pb-20 md:px-8 md:pt-10 md:pb-28">
+        {/* Editorial header row */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={viewport}
+          transition={{ duration: 0.8, ease: EASE }}
+          className="grid grid-cols-2 gap-4 text-[11px] uppercase leading-[1.4] tracking-[0.12em] md:grid-cols-4"
+        >
+          <span className="font-semibold">04 — Comms</span>
+          <span className="hidden text-[#012169]/55 md:block">Contact &amp; enquiries</span>
+          <span className="hidden text-[#012169]/55 md:block">Franchise · Investor · General</span>
+          <span className="flex items-center justify-end gap-2 text-right">
+            Transmitting
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[#E4002B]" />
+          </span>
+        </motion.div>
 
-      {/* Rotating Control Room Radar Overlay (Low Opacity Ambient) */}
-      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] sm:w-[900px] h-[600px] sm:h-[900px] rounded-full border border-[#012169]/8 opacity-40 animate-[spin_60s_linear_infinite]" />
-      <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] sm:w-[500px] h-[350px] sm:h-[500px] rounded-full border border-dashed border-[#E4002B]/15 opacity-40 animate-[spin_30s_linear_infinite_reverse]" />
+        {/* Title with parallax drift */}
+        <motion.h1
+          style={{ y: titleY }}
+          className="mt-6 font-medium leading-[0.9] tracking-[-0.055em] text-[clamp(52px,9vw,150px)] md:mt-8"
+        >
+          {["Let's", "talk."].map((line, i) => (
+            <span key={line} className="block overflow-hidden pb-[0.06em]">
+              <motion.span
+                className="block"
+                initial={{ y: "110%" }}
+                animate={{ y: "0%" }}
+                transition={{ duration: 1.1, delay: 0.15 + i * 0.12, ease: EASE }}
+              >
+                {i === 1 ? (
+                  <>
+                    talk<span className="text-[#E4002B]">.</span>
+                  </>
+                ) : (
+                  line
+                )}
+              </motion.span>
+            </span>
+          ))}
+        </motion.h1>
 
+        <div className="mt-8 grid gap-12 md:mt-10 lg:grid-cols-[1fr_1.35fr] lg:gap-20">
+          {/* Left: short intro + parallax disc */}
+          <div className="relative">
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={viewport}
+              transition={{ duration: 0.8, delay: 0.1, ease: EASE }}
+              className="max-w-sm text-base leading-relaxed text-[#012169]/75 md:text-lg"
+            >
+              Franchise, investor and general enquiries. Tell us a little about what you have in mind.
+            </motion.p>
 
-      {/* Main Two-Column Layout */}
-      <div className="mx-auto w-full max-w-7xl relative z-10 pt-4 sm:pt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 lg:gap-14 items-center">
-          {/* ==================================================================
-              LEFT COLUMN: CONTACT INFORMATION & SYNDICATE IDENTITY
-              ================================================================== */}
-          <div
-            ref={leftColRef}
-            className="lg:col-span-6 flex flex-col justify-center space-y-6 sm:space-y-8"
-          >
-            {/* Main Headline */}
-            <div>
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black uppercase tracking-tight text-[#012169] leading-[0.98]">
-                Let&apos;s Build <br />
-                <span className="text-[#E4002B] font-normal ">
-                  Something Extraordinary.
-                </span>
-              </h1>
-              <p className="mt-4 text-sm sm:text-base text-[#012169]/80 leading-relaxed font-medium max-w-xl">
-                The Property Franchise orchestrates confidential off-market commercial property transactions, regional master territory franchise licensing, and direct capital syndication with leading institutional partners worldwide.
-              </p>
-            </div>
+            <motion.div
+              style={{ y: discY, rotate: discRotate }}
+              className="relative mt-14 hidden aspect-square w-[min(340px,70%)] lg:block"
+            >
+              <span className="absolute inset-0 overflow-hidden rounded-full bg-[#0A1633]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/station-comms.jpg"
+                  alt="A deep space network dish antenna"
+                  className="h-full w-full object-cover"
+                  draggable={false}
+                />
+                <span className="absolute inset-0 rounded-full bg-[#012169]/15 mix-blend-multiply" />
+              </span>
+              <span className="absolute -inset-3 rounded-full border border-dashed border-[#012169]/25 animate-[spin_40s_linear_infinite]" />
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] uppercase tracking-[0.14em] text-[#012169]/55">
+                04 Comms · Signals
+              </span>
+            </motion.div>
           </div>
 
-          {/* ==================================================================
-              RIGHT COLUMN: FUTURISTIC INTERACTIVE CONTACT FORM PANEL
-              ================================================================== */}
-          <div ref={formPanelRef} className="lg:col-span-6">
-            <div className="relative rounded-[28px] sm:rounded-[32px] border-[2px] border-[#012169]/20 bg-white/80 backdrop-blur-xl shadow-[0_25px_60px_rgba(1,33,105,0.18)] p-6 sm:p-8 lg:p-10 select-none overflow-hidden">
-              {/* Form Panel Header */}
-              <div className="border-b border-[#012169]/15 pb-4 mb-6">
-                <h3 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-[#012169]">
-                  Register Capital Mandate
-                </h3>
-              </div>
-
-              {/* Form Content / Success Message Switch */}
-              <AnimatePresence mode="wait">
-                {isSubmitted ? (
-                  /* Success Confirmation Dossier */
-                  <motion.div
-                    key="success"
-                    initial={{ opacity: 0, scale: 0.94 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.94 }}
-                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                    className="py-6 flex flex-col items-center text-center space-y-4"
+          {/* Right: form */}
+          <div>
+            <AnimatePresence mode="wait">
+              {isSubmitted ? (
+                <motion.div
+                  key="done"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.6, ease: EASE }}
+                  className="border-t border-[#012169]/20 pt-8"
+                >
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-[#E4002B]">Message received</p>
+                  <h2 className="mt-3 text-4xl font-medium tracking-[-0.04em] md:text-6xl">
+                    Thank you{form.fullName ? `, ${form.fullName.split(" ")[0]}` : ""}.
+                  </h2>
+                  <p className="mt-4 max-w-md text-base text-[#012169]/70">
+                    We&apos;ll be in touch about your {enquiryType.toLowerCase()} enquiry.
+                  </p>
+                  <button
+                    onClick={handleReset}
+                    className="group mt-8 inline-flex items-center gap-2 border-b border-[#012169]/40 pb-1 text-[12px] font-semibold uppercase tracking-[0.12em] hover:border-[#E4002B] hover:text-[#E4002B] transition-colors cursor-pointer"
                   >
-                    <div className="h-16 w-16 rounded-full bg-emerald-500/10 border-2 border-emerald-600 text-emerald-600 flex items-center justify-center shadow-lg">
-                      <CheckCircle2 className="h-8 w-8" />
+                    Send another
+                    <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                  </button>
+                </motion.div>
+              ) : (
+                <motion.form
+                  key="form"
+                  onSubmit={handleSubmit}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, y: -12 }}
+                >
+                  {/* Enquiry type */}
+                  <motion.fieldset
+                    initial={{ opacity: 0, y: 16 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={viewport}
+                    transition={{ duration: 0.7, ease: EASE }}
+                    className="border-t border-[#012169]/20 pt-5"
+                  >
+                    <legend className="sr-only">Enquiry type</legend>
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-[#012169]/55">Enquiry</span>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {ENQUIRY_TYPES.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => {
+                            setEnquiryType(t);
+                            scifiAudio.playHoloBeep(880, 0.04);
+                          }}
+                          aria-pressed={enquiryType === t}
+                          className={`rounded-full border px-4 py-2 text-[12px] uppercase tracking-[0.1em] transition-colors cursor-pointer ${
+                            enquiryType === t
+                              ? "border-[#012169] bg-[#012169] text-white"
+                              : "border-[#012169]/20 text-[#012169]/70 hover:border-[#012169]/60 hover:text-[#012169]"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
                     </div>
+                  </motion.fieldset>
 
-                    <div>
-                      <span className="text-xs font-mono font-bold text-[#E4002B] tracking-widest uppercase block mb-1">
-                        DOCKET: {referenceId}
-                      </span>
-                      <h4 className="text-2xl sm:text-3xl font-black uppercase text-[#012169]">
-                        Transmission Received
-                      </h4>
-                      <p className="mt-2 text-xs sm:text-sm text-[#012169]/75 max-w-md mx-auto">
-                        Your commercial property mandate enquiry has been routed directly to our Managing Partner Desk. A senior partner will initiate private advisory contact within 2 hours.
-                      </p>
-                    </div>
-
-                    <div className="w-full p-4 rounded-xl border border-[#012169]/15 bg-[#F7F9FC] text-left text-xs font-mono space-y-1.5">
-                      <div className="flex justify-between">
-                        <span className="text-[#012169]/60">MANDATE TYPE:</span>
-                        <span className="font-bold text-[#012169] truncate max-w-[220px]">
-                          {formData.projectType}
+                  {/* Fields: label left, input right, hairline rows */}
+                  <div className="mt-8 border-b border-[#012169]/20">
+                    {FIELDS.map((f, i) => (
+                      <motion.label
+                        key={f.id}
+                        htmlFor={f.id}
+                        initial={{ opacity: 0, y: 14 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={viewport}
+                        transition={{ duration: 0.7, delay: 0.05 * i, ease: EASE }}
+                        className="group relative grid cursor-text grid-cols-[110px_1fr] items-baseline gap-4 border-t border-[#012169]/20 py-4 md:grid-cols-[160px_1fr]"
+                      >
+                        <span
+                          className={`text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                            focused === f.id ? "text-[#E4002B]" : "text-[#012169]/55"
+                          }`}
+                        >
+                          {f.label}
+                          {f.required && " *"}
                         </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#012169]/60">REPRESENTATIVE:</span>
-                        <span className="font-bold text-[#012169]">
-                          {formData.fullName || "Accredited Investor"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#012169]/60">STATUS:</span>
-                        <span className="font-bold text-emerald-600">
-                          LOGGED &amp; ALLOCATED
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleResetForm}
-                      className="mt-2 px-6 py-2.5 rounded-full bg-[#012169] text-[#FFFFFF] text-xs font-bold uppercase tracking-wider hover:bg-[#E4002B] transition-colors cursor-pointer shadow-md"
+                        <input
+                          id={f.id}
+                          type={f.type}
+                          required={f.required}
+                          autoComplete={f.autoComplete}
+                          value={form[f.id]}
+                          onFocus={() => setFocused(f.id)}
+                          onBlur={() => setFocused(null)}
+                          onChange={(e) => setForm({ ...form, [f.id]: e.target.value })}
+                          className="w-full bg-transparent text-lg text-[#012169] outline-none placeholder:text-[#012169]/25 md:text-xl"
+                        />
+                        {/* Focus underline sweep */}
+                        <span
+                          className={`pointer-events-none absolute -bottom-px left-0 h-px w-full origin-left bg-[#E4002B] transition-transform duration-500 ${
+                            focused === f.id ? "scale-x-100" : "scale-x-0"
+                          }`}
+                        />
+                      </motion.label>
+                    ))}
+                    <motion.label
+                      htmlFor="message"
+                      initial={{ opacity: 0, y: 14 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={viewport}
+                      transition={{ duration: 0.7, delay: 0.2, ease: EASE }}
+                      className="relative grid cursor-text grid-cols-[110px_1fr] items-baseline gap-4 border-t border-[#012169]/20 py-4 md:grid-cols-[160px_1fr]"
                     >
-                      Submit Another Mandate
-                    </button>
-                  </motion.div>
-                ) : (
-                  /* Interactive Input Form */
-                  <motion.form
-                    key="form"
-                    onSubmit={handleSubmit}
-                    className="space-y-4 sm:space-y-5"
-                  >
-                    {/* Row 1: Full Name & Email */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Full Name */}
-                      <div className="relative">
-                        <label
-                          htmlFor="fullName"
-                          className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
-                            focusedField === "fullName"
-                              ? "text-[#E4002B]"
-                              : "text-[#012169]/70"
-                          }`}
-                        >
-                          Full Name *
-                        </label>
-                        <input
-                          id="fullName"
-                          type="text"
-                          required
-                          placeholder="e.g. Lord Alistair Vance"
-                          value={formData.fullName}
-                          onFocus={() => {
-                            setFocusedField("fullName");
-                            scifiAudio.playHoloBeep(850, 0.04);
-                          }}
-                          onBlur={() => setFocusedField(null)}
-                          onChange={(e) =>
-                            setFormData({ ...formData, fullName: e.target.value })
-                          }
-                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
-                        />
-                      </div>
-
-                      {/* Email */}
-                      <div className="relative">
-                        <label
-                          htmlFor="email"
-                          className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
-                            focusedField === "email"
-                              ? "text-[#E4002B]"
-                              : "text-[#012169]/70"
-                          }`}
-                        >
-                          Corporate Email *
-                        </label>
-                        <input
-                          id="email"
-                          type="email"
-                          required
-                          placeholder="e.g. vance@sovereigncapital.com"
-                          value={formData.email}
-                          onFocus={() => {
-                            setFocusedField("email");
-                            scifiAudio.playHoloBeep(850, 0.04);
-                          }}
-                          onBlur={() => setFocusedField(null)}
-                          onChange={(e) =>
-                            setFormData({ ...formData, email: e.target.value })
-                          }
-                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Row 2: Phone Number & Company Name */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Phone Number */}
-                      <div className="relative">
-                        <label
-                          htmlFor="phone"
-                          className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
-                            focusedField === "phone"
-                              ? "text-[#E4002B]"
-                              : "text-[#012169]/70"
-                          }`}
-                        >
-                          Phone Number *
-                        </label>
-                        <input
-                          id="phone"
-                          type="tel"
-                          required
-                          placeholder="e.g. +44 20 7946 0912"
-                          value={formData.phone}
-                          onFocus={() => {
-                            setFocusedField("phone");
-                            scifiAudio.playHoloBeep(850, 0.04);
-                          }}
-                          onBlur={() => setFocusedField(null)}
-                          onChange={(e) =>
-                            setFormData({ ...formData, phone: e.target.value })
-                          }
-                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
-                        />
-                      </div>
-
-                      {/* Company Name */}
-                      <div className="relative">
-                        <label
-                          htmlFor="company"
-                          className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
-                            focusedField === "company"
-                              ? "text-[#E4002B]"
-                              : "text-[#012169]/70"
-                          }`}
-                        >
-                          Syndicate / Fund Entity
-                        </label>
-                        <input
-                          id="company"
-                          type="text"
-                          placeholder="e.g. Vance Global Capital REIT"
-                          value={formData.company}
-                          onFocus={() => {
-                            setFocusedField("company");
-                            scifiAudio.playHoloBeep(850, 0.04);
-                          }}
-                          onBlur={() => setFocusedField(null)}
-                          onChange={(e) =>
-                            setFormData({ ...formData, company: e.target.value })
-                          }
-                          className="w-full bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] placeholder-[#012169]/35 focus:outline-none transition-all duration-300"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Row 3: Project Type Dropdown */}
-                    <div className="relative">
-                      <label
-                        htmlFor="projectType"
-                        className={`block text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200 mb-1 ${
-                          focusedField === "projectType"
-                            ? "text-[#E4002B]"
-                            : "text-[#012169]/70"
+                      <span
+                        className={`text-[11px] uppercase tracking-[0.14em] transition-colors ${
+                          focused === "message" ? "text-[#E4002B]" : "text-[#012169]/55"
                         }`}
                       >
-                        Project / Mandate Category *
-                      </label>
-                      <div className="relative">
-                        <select
-                          id="projectType"
-                          value={formData.projectType}
-                          onFocus={() => {
-                            setFocusedField("projectType");
-                            scifiAudio.playHoloBeep(850, 0.04);
-                          }}
-                          onBlur={() => setFocusedField(null)}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              projectType: e.target.value,
-                            })
-                          }
-                          className="w-full appearance-none bg-transparent border-b-2 border-[#012169]/20 focus:border-[#E4002B] pb-2 pt-1 text-xs sm:text-sm text-[#012169] focus:outline-none cursor-pointer pr-8 font-bold transition-all duration-300"
-                        >
-                          <option className="bg-white text-[#012169]">
-                            Trophy Office Tower Acquisition ($100M+)
-                          </option>
-                          <option className="bg-white text-[#012169]">
-                            Master Franchise Territory License
-                          </option>
-                          <option className="bg-white text-[#012169]">
-                            Commercial Corporate Business Campus
-                          </option>
-                          <option className="bg-white text-[#012169]">
-                            Industrial &amp; Logistics Hub Syndicate
-                          </option>
-                          <option className="bg-white text-[#012169]">
-                            Off-Market Private Equity Mandate
-                          </option>
-                          <option className="bg-white text-[#012169]">
-                            General Executive Consultation
-                          </option>
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center text-[#E4002B]">
-                          <ChevronDown className="h-4 w-4" />
-                        </div>
-                      </div>
-                    </div>
+                        Message
+                      </span>
+                      <textarea
+                        id="message"
+                        rows={3}
+                        value={message}
+                        onFocus={() => setFocused("message")}
+                        onBlur={() => setFocused(null)}
+                        onChange={(e) => setMessage(e.target.value)}
+                        className="w-full resize-none bg-transparent text-lg text-[#012169] outline-none md:text-xl"
+                      />
+                      <span
+                        className={`pointer-events-none absolute -bottom-px left-0 h-px w-full origin-left bg-[#E4002B] transition-transform duration-500 ${
+                          focused === "message" ? "scale-x-100" : "scale-x-0"
+                        }`}
+                      />
+                    </motion.label>
+                  </div>
 
-                    {/* Bottom Submission Action Bar */}
-                    <div className="pt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-[#012169]/10">
-                      <div className="flex items-center gap-1.5 text-[10px] text-[#012169]/60 font-mono">
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                        <span>Confidential Non-Disclosure Protected</span>
-                      </div>
-
-                      {/* Magnetic Submit Button */}
-                      <button
-                        ref={submitBtnRef}
-                        type="submit"
-                        disabled={isSubmitting}
-                        style={{
-                          transform: `translate3d(${btnOffset.x}px, ${btnOffset.y}px, 0)`,
-                          transition: "transform 0.15s ease-out, background-color 0.25s, box-shadow 0.25s",
-                        }}
-                        className="w-full sm:w-auto relative group overflow-hidden px-8 py-3.5 rounded-full bg-[#012169] hover:bg-[#E4002B] text-[#FFFFFF] text-xs font-black uppercase tracking-[0.18em] shadow-[0_10px_25px_rgba(1,33,105,0.25)] hover:shadow-[0_15px_35px_rgba(228,0,43,0.4)] active:scale-95 cursor-pointer disabled:opacity-60 flex items-center justify-center gap-2"
-                      >
+                  <motion.div
+                    initial={{ opacity: 0, y: 14 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={viewport}
+                    transition={{ duration: 0.7, delay: 0.25, ease: EASE }}
+                    className="mt-8 flex flex-wrap items-center justify-between gap-4"
+                  >
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-[#012169]/55">* Required</span>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="group inline-flex items-center gap-3 rounded-full bg-[#012169] py-2 pl-7 pr-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-white transition-colors hover:bg-[#E4002B] disabled:opacity-60 cursor-pointer"
+                    >
+                      {isSubmitting ? "Sending…" : "Send enquiry"}
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#012169] transition-transform duration-300 group-hover:translate-x-1">
                         {isSubmitting ? (
-                          <span className="inline-flex items-center gap-2">
-                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                            <span>TRANSMITTING MANDATE...</span>
-                          </span>
+                          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#012169] border-t-transparent" />
                         ) : (
-                          <>
-                            <span>Send Enquiry</span>
-                            <ArrowUpRight className="h-4 w-4 text-white group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform duration-300" />
-                          </>
+                          <ArrowRight className="h-4 w-4" />
                         )}
-                      </button>
-                    </div>
-                  </motion.form>
-                )}
-              </AnimatePresence>
-            </div>
+                      </span>
+                    </button>
+                  </motion.div>
+                </motion.form>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>

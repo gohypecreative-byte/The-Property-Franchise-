@@ -28,10 +28,6 @@ export function Navigation({ onReset }: NavigationProps) {
           <span className="text-[12px] sm:text-[13px] font-bold tracking-[0.14em] text-white uppercase">
             The Property Franchise
           </span>
-          <span className="mt-1.5 flex items-center gap-1.5 text-[8px] sm:text-[9px] font-semibold tracking-[0.24em] text-white/60 uppercase">
-            <span className="h-1 w-1 rounded-full bg-[#E4002B]" />
-            Commercial Network
-          </span>
         </span>
       </button>
     </nav>

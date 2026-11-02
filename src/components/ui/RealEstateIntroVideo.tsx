@@ -278,16 +278,8 @@ export function RealEstateIntroVideo({
                       <span className="text-[12px] font-bold tracking-[0.08em] text-[#012169]">
                         The Property Franchise
                       </span>
-                      <span className="text-[9px] font-semibold tracking-[0.16em] text-[#E4002B]">
-                        Commercial Network
-                      </span>
                     </span>
                   </button>
-                  <div className="hidden md:flex items-center gap-8 text-[#012169]/60">
-                    <span className="text-[#012169]">Film</span>
-                    <span>Reels</span>
-                    <span>Territories</span>
-                  </div>
                   <button
                     onClick={handleClose}
                     className="group flex items-center gap-2 rounded-full border border-[#012169]/20 pl-4 pr-1.5 py-1.5 hover:border-[#012169] transition-colors cursor-pointer"

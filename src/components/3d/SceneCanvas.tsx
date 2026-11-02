@@ -1,13 +1,12 @@
 // src/components/3d/SceneCanvas.tsx
 "use client";
 
-import React, { Suspense, useRef, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Spaceship } from "./Spaceship";
 import { ControlBridge } from "./ControlBridge";
 import { AlienCharacters } from "./AlienCharacters";
-import { EnvironmentEffects } from "./EnvironmentEffects";
 
 export type CharacterKey = "sue" | "reed" | "johnny" | "ben";
 
@@ -18,6 +17,8 @@ interface SceneCanvasProps {
   onPlanetsClick?: () => void;
   onThirdCharacterClick?: () => void;
   isDimmed?: boolean;
+  /** Looping hero footage shown through the bridge canopy behind the 3D scene */
+  videoSrc?: string;
 }
 
 // Camera controller choreographing the flight from deep space into the control bridge
@@ -88,7 +89,21 @@ export function SceneCanvas({
   onPlanetsClick,
   onThirdCharacterClick,
   isDimmed = false,
+  videoSrc = "/gemini_generated_video_56bc20e8_gwr_video_mvp.mp4",
 }: SceneCanvasProps) {
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Keep the hero footage in sync with the scene: pause while a section is open
+  useEffect(() => {
+    const video = heroVideoRef.current;
+    if (!video) return;
+    if (isDimmed) {
+      video.pause();
+    } else {
+      video.play().catch(() => {});
+    }
+  }, [isDimmed]);
+
   const [hoveredChar, setHoveredChar] = useState<CharacterKey | null>(null);
   const sueBadgeRef = useRef<HTMLDivElement>(null);
   const reedBadgeRef = useRef<HTMLDivElement>(null);
@@ -107,18 +122,31 @@ export function SceneCanvas({
       className={`fixed inset-0 z-0 h-screen w-screen overflow-hidden bg-[#0A1628] transition-all duration-700 ease-out ${isDimmed ? "scale-[0.98] blur-[8px] opacity-35 brightness-75 pointer-events-none" : "scale-100 blur-0 opacity-100"
         }`}
     >
+      {/* Hero footage: the view through the bridge canopy */}
+      <video
+        ref={heroVideoRef}
+        src={videoSrc}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        className="absolute inset-0 z-0 h-full w-full object-cover"
+      />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-[#081220]/30 via-transparent to-[#081220]/55" />
+
       <Canvas
+        className="!absolute inset-0 z-10"
         shadows
         dpr={[1, 1.8]}
         gl={{
           antialias: true,
-          alpha: false,
+          alpha: true,
           powerPreference: "high-performance",
         }}
         camera={{ position: [0, 3.8, 13.5], fov: 46, near: 0.1, far: 450 }}
       >
-        {/* Deep Flag Space Navy Background */}
-        <color attach="background" args={["#081220"]} />
+        {/* Transparent background so the hero footage shows through */}
         <fog attach="fog" args={["#081220", 20, 110]} />
 
         {/* Ambient Lighting in Heritage Flag Navy */}
@@ -150,7 +178,6 @@ export function SceneCanvas({
 
         <Suspense fallback={null}>
           <CameraRig progress={scrollProgress} />
-          <EnvironmentEffects flightProgress={scrollProgress} />
           <Spaceship progress={scrollProgress} />
           <ControlBridge progress={scrollProgress} />
           <AlienCharacters

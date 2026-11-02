@@ -2,9 +2,9 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { Navigation } from "./ui/Navigation";
+import { HeroVideoScene } from "./ui/HeroVideoScene";
 import { RealEstateIntroVideo } from "./ui/RealEstateIntroVideo";
 import { BrandMark } from "./ui/BrandMark";
 import { RealEstateReelsSection } from "./ui/RealEstateReelsSection";
@@ -15,24 +15,6 @@ import { scifiAudio } from "@/lib/audio";
 import { X, Sparkles, Film, Building2, Play, Mail, Undo2 } from "lucide-react";
 import Lenis from "lenis";
 
-
-// Dynamically import SceneCanvas with SSR disabled for safe WebGL initialization
-const SceneCanvas = dynamic(
-  () => import("./3d/SceneCanvas").then((mod) => mod.SceneCanvas),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="fixed inset-0 z-0 flex items-center justify-center bg-[#0A1633] text-[#FFFFFF]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#E4002B] border-t-transparent" />
-          <span className="font-mono text-xs tracking-widest uppercase text-[#FFFFFF]/80">
-            Initializing Spaceship Flight & Control Bridge...
-          </span>
-        </div>
-      </div>
-    ),
-  }
-);
 
 type ActiveModal = "none" | "reels" | "details" | "contact";
 
@@ -110,9 +92,8 @@ export function LandingExperience() {
         onReset={handleCloseModal}
       />
 
-      {/* 3D Scene Background (Control Bridge with clickable characters) */}
-      <SceneCanvas
-        scrollProgress={1.0}
+      {/* Hero: bridge footage with clickable crew */}
+      <HeroVideoScene
         onMainCharacterClick={handleMainCharacterClick}
         onReelsClick={handleReelsClick}
         onPlanetsClick={handlePlanetsClick}

@@ -1,12 +1,16 @@
 // src/app/layout.tsx
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { ErrorSuppressor } from "@/components/common/ErrorSuppressor";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
+// Condor Medium Condensed Italic: the slant is drawn into the glyphs, so it is
+// registered as upright and across all weights to avoid faux italic/bold.
+const condor = localFont({
+  src: "./fonts/CondorMediumCondensedItalic.otf",
+  variable: "--font-condor",
+  weight: "100 900",
+  style: "normal",
   display: "swap",
 });
 
@@ -33,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html lang="en" className={`${condor.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-[#F7F9FC] text-[#012169] selection:bg-[#E4002B] selection:text-[#F7F9FC]">
         <ErrorSuppressor />
         {children}

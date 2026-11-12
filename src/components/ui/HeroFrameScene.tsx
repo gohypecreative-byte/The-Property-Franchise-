@@ -27,7 +27,12 @@ interface HeroFrameSceneProps {
 const FRAME_COUNT = 240;
 const FRAME_W = 1280;
 const FRAME_H = 720;
-const frameSrc = (i: number) => `/hero_frames/frame_${String(i + 1).padStart(4, "0")}-clean.png`;
+// WebP versions of the clean frames (~70KB each vs ~1.2MB PNG) so the whole
+// sequence downloads and decodes fast enough to scrub without stalls.
+const frameSrc = (i: number) => `/hero_frames/frame_${String(i + 1).padStart(4, "0")}-clean.webp`;
+// Source frames are 1280x720, so a canvas much larger than this only costs
+// fill-rate without adding detail. Cap the backing store width.
+const MAX_CANVAS_W = 1920;
 
 // Frame 0..143: Spaceship approach and cockpit fly-in (scroll-scrubbed)
 // Frame 144..239: Bridge cabin scene (autoplay plays only once from Screenshot 1 to Screenshot 2 upon scroll completion)
@@ -158,19 +163,28 @@ export function HeroFrameScene({
   // --------------------------------------------------------------------------
   // CANVAS DRAWING: cover-fit the current frame with seamless loop crossfade
   // --------------------------------------------------------------------------
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const draw = (index: number, blendIndex?: number, blendAlpha?: number) => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
+    if (!canvas) return;
+    if (!ctxRef.current) {
+      ctxRef.current = canvas.getContext("2d", { alpha: false, desynchronized: true });
+    }
+    const ctx = ctxRef.current;
+    if (!ctx) return;
 
+    // Nearest loaded frame (searching both directions) so a missing frame
+    // never snaps the picture far back in the sequence.
     const getValidImg = (targetIdx: number) => {
-      let i = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round(targetIdx)));
-      let img = imagesRef.current[i];
-      while (i > 0 && !(img && img.complete && img.naturalWidth)) {
-        i -= 1;
-        img = imagesRef.current[i];
+      const t = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round(targetIdx)));
+      for (let off = 0; off < FRAME_COUNT; off++) {
+        const a = imagesRef.current[t - off];
+        if (a) return a;
+        const b = imagesRef.current[t + off];
+        if (b) return b;
+        if (t - off < 0 && t + off >= FRAME_COUNT) break;
       }
-      return img && img.complete && img.naturalWidth ? img : null;
+      return null;
     };
 
     const imgA = getValidImg(index);
@@ -205,10 +219,21 @@ export function HeroFrameScene({
     const resize = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(window.innerWidth * dpr);
-      canvas.height = Math.round(window.innerHeight * dpr);
-      draw(frameRef.current.index);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      let w = window.innerWidth * dpr;
+      let h = window.innerHeight * dpr;
+      if (w > MAX_CANVAS_W) {
+        h *= MAX_CANVAS_W / w;
+        w = MAX_CANVAS_W;
+      }
+      canvas.width = Math.round(w);
+      canvas.height = Math.round(h);
+      const ctx = ctxRef.current;
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "medium";
+      }
+      draw(Math.round(frameRef.current.index));
     };
     resize();
     window.addEventListener("resize", resize);
@@ -234,10 +259,10 @@ export function HeroFrameScene({
             .finally(() => {
               if (isCancelled) return resolve();
               images[index] = img;
-              if (index === 0) {
-                setFirstLoaded(true);
-                draw(0);
-              }
+              if (index === 0) setFirstLoaded(true);
+              // Repaint if this is the frame currently on screen (it may have
+              // been showing a nearby fallback frame until now).
+              if (index === Math.round(frameRef.current.index)) draw(index);
               resolve();
             });
         };
@@ -248,34 +273,21 @@ export function HeroFrameScene({
 
     imagesRef.current = images;
 
-    // 1. Load frame 0 immediately for first paint
-    loadImage(0).then(() => {
-      if (isCancelled) return;
+    // Load in two passes so the whole flight is quickly scrubbable:
+    // pass 1 = every 4th frame (coarse coverage), pass 2 = the rest, in scroll order.
+    // A small worker pool keeps the network busy without flooding the decoder.
+    const order: number[] = [];
+    for (let i = 0; i < FRAME_COUNT; i += 4) order.push(i);
+    for (let i = 0; i < FRAME_COUNT; i++) if (i % 4 !== 0) order.push(i);
 
-      // 2. Preload priority frames: initial flight (1..30) & full cabin sequence (CABIN_START_FRAME..CABIN_END_FRAME)
-      const priorityIndices: number[] = [];
-      for (let i = 1; i <= 30; i++) priorityIndices.push(i);
-      for (let i = CABIN_START_FRAME; i <= CABIN_END_FRAME; i++) priorityIndices.push(i);
-
-      Promise.all(priorityIndices.map(loadImage)).then(() => {
-        if (isCancelled) return;
-
-        // 3. Preload all remaining frames in batches of 16
-        const remainingIndices: number[] = [];
-        for (let i = 1; i < FRAME_COUNT; i++) {
-          if (!priorityIndices.includes(i)) remainingIndices.push(i);
-        }
-
-        const loadRemainingChunks = async () => {
-          for (let c = 0; c < remainingIndices.length; c += 16) {
-            if (isCancelled) break;
-            const chunk = remainingIndices.slice(c, c + 16);
-            await Promise.all(chunk.map(loadImage));
-          }
-        };
-
-        loadRemainingChunks();
-      });
+    let next = 0;
+    const worker = async () => {
+      while (!isCancelled && next < order.length) {
+        await loadImage(order[next++]);
+      }
+    };
+    loadImage(order[next++]).then(() => {
+      for (let w = 0; w < 6; w++) worker();
     });
 
     return () => {
@@ -302,9 +314,9 @@ export function HeroFrameScene({
     const lenis = new Lenis({
       wrapper: scroller,
       content: track,
-      lerp: 0.095,
-      wheelMultiplier: 1.25,
-      touchMultiplier: 1.5,
+      lerp: 0.1,
+      wheelMultiplier: 1,
+      touchMultiplier: 1.2,
       smoothWheel: true,
     });
     lenisRef.current = lenis;
@@ -320,7 +332,9 @@ export function HeroFrameScene({
       const dt = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
 
-      const progress = scrollProgressRef.current;
+      // Read Lenis' smoothed progress directly (same frame, no event latency)
+      const progress = Number.isFinite(lenis.progress) ? lenis.progress : scrollProgressRef.current;
+      scrollProgressRef.current = progress;
       const cur = frameRef.current;
       const isScrollComplete = progress >= 0.92;
       const isBridgeVisible = progress >= 0.85;
@@ -346,7 +360,8 @@ export function HeroFrameScene({
         if (cur.index < CABIN_START_FRAME) {
           // Smooth glide into Screenshot 1 (frame 145)
           const diff = CABIN_START_FRAME - cur.index;
-          cur.index += Math.abs(diff) < 0.05 ? diff : diff * 0.22;
+          const k = 1 - Math.exp(-dt * 14); // frame-rate independent glide
+          cur.index += Math.abs(diff) < 0.05 ? diff : diff * k;
         } else if (!isDimmedRef.current) {
           // Plays smoothly forward from Screenshot 1 to Screenshot 2 (frame 240) and stops on final frame
           if (cur.index < CABIN_END_FRAME) {
@@ -356,9 +371,9 @@ export function HeroFrameScene({
       } else {
         // --- SCROLL SCRUB MODE ---
         // Scroll smoothly controls space flight all the way up to Screenshot 1 (CABIN_START_FRAME)
-        const targetIndex = (progress / 0.92) * CABIN_START_FRAME;
-        const diff = targetIndex - cur.index;
-        cur.index += Math.abs(diff) < 0.02 ? diff : diff * 0.22;
+        // Lenis already smooths the scroll, so map it straight to the frame.
+        // (A second lerp on top made the scrub feel delayed / rubbery.)
+        cur.index = (progress / 0.92) * CABIN_START_FRAME;
       }
 
       // Draw current frame smoothly, clamped within sequence bounds
@@ -414,10 +429,10 @@ export function HeroFrameScene({
 
   return (
     <div
-      className={`fixed inset-0 z-0 h-[100dvh] w-screen overflow-hidden bg-[#081220] transition-all duration-700 ease-out ${
+      className={`fixed inset-0 z-0 h-[100dvh] w-screen overflow-hidden bg-[#081220] transition-[opacity,transform,filter] duration-700 ease-out ${
         isDimmed
           ? "scale-[0.98] blur-[8px] opacity-35 brightness-75 pointer-events-none"
-          : "scale-100 blur-0 opacity-100"
+          : ""
       }`}
     >
       <div

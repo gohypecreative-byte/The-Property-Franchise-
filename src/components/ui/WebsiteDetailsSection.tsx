@@ -786,13 +786,13 @@ export function WebsiteDetailsSection({
                     </span>
                   </div>
 
-                  <div className="flex flex-1 flex-col justify-between overflow-y-auto p-6 sm:p-10">
+                  <div className="flex flex-1 flex-col justify-between overflow-y-auto p-5 sm:p-10">
                     <div>
                       <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#E4002B]">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#E4002B]" />
                         {selectedDossier.category}
                       </span>
-                      <h3 className="mt-4 text-3xl sm:text-[38px] font-bold leading-[1.05] tracking-[-0.01em]">
+                      <h3 className="mt-4 text-2xl sm:text-[38px] font-bold leading-[1.05] tracking-[-0.01em]">
                         {selectedDossier.title}
                       </h3>
                       <p className="mt-3 flex items-center gap-1.5 text-sm text-[#012169]/60">

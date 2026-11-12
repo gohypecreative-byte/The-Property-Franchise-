@@ -101,7 +101,7 @@ export function ContactSection({ scrollContainerRef }: ContactSectionProps) {
         {/* Title with parallax drift */}
         <motion.h1
           style={{ y: titleY }}
-          className="mt-6 font-medium leading-[0.9] tracking-[-0.01em] text-[clamp(52px,9vw,150px)] md:mt-8"
+          className="mt-6 font-medium leading-[0.9] tracking-[-0.01em] text-[clamp(38px,9vw,150px)] md:mt-8"
         >
           {["Let's", "talk."].map((line, i) => (
             <span key={line} className="-mx-[0.15em] block overflow-hidden px-[0.15em] pb-[0.06em]">

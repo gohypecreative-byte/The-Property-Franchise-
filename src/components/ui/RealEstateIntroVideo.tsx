@@ -304,7 +304,7 @@ export function RealEstateIntroVideo({
                       initial={{ y: "105%" }}
                       animate={{ y: "0%" }}
                       transition={{ duration: 1.1, delay: 0.7, ease: EASE }}
-                      className="whitespace-nowrap text-[clamp(26px,6.4vw,124px)] font-semibold uppercase leading-[0.95] tracking-[-0.01em] text-[#012169]"
+                      className="whitespace-nowrap text-[clamp(20px,6.4vw,124px)] font-semibold uppercase leading-[0.95] tracking-[-0.01em] text-[#012169]"
                     >
                       {companyName}
                     </motion.h1>

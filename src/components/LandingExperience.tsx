@@ -21,6 +21,7 @@ type ActiveModal = "none" | "reels" | "details" | "contact";
 export function LandingExperience() {
   const [activeModal, setActiveModal] = useState<ActiveModal>("none");
   const [isVideoOpen, setIsVideoOpen] = useState(false);
+  const [isBridgeReady, setIsBridgeReady] = useState(false);
   const modalScrollRef = useRef<HTMLDivElement>(null);
 
   // Lenis Smooth Scroll Initialization for active modal scroll containers
@@ -39,6 +40,8 @@ export function LandingExperience() {
         content: (container.firstElementChild as HTMLElement) || container,
         smoothWheel: true,
         lerp: 0.1,
+        wheelMultiplier: 1.2,
+        touchMultiplier: 1.5,
       });
 
       function raf(time: number) {
@@ -98,6 +101,7 @@ export function LandingExperience() {
         onReelsClick={handleReelsClick}
         onPlanetsClick={handlePlanetsClick}
         onThirdCharacterClick={handleThirdCharacterClick}
+        onBridgeReady={setIsBridgeReady}
         isDimmed={activeModal !== "none" || isVideoOpen}
       />
 
@@ -124,12 +128,12 @@ export function LandingExperience() {
                 duration: 0.3,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="relative min-h-screen bg-[#F7F9FC] text-[#012169] shadow-2xl flex flex-col justify-between"
+              className="relative min-h-[100dvh] bg-[#F7F9FC] text-[#012169] shadow-2xl flex flex-col justify-between"
             >
               {/* Sticky Top Header Bar (Website Logo & U-turn Return Arrow) */}
               <div
                 data-modal-header
-                className="sticky top-0 z-50 flex items-center justify-between border-b border-[#012169]/10 bg-[#F7F9FC]/95 px-3 sm:px-8 py-2.5 sm:py-3.5 backdrop-blur-md shadow-sm gap-2"
+                className="sticky top-0 z-50 flex items-center justify-between border-b border-[#012169]/10 bg-[#F7F9FC]/95 px-3 sm:px-8 py-2.5 sm:py-3.5 pt-[max(10px,env(safe-area-inset-top))] backdrop-blur-md shadow-sm gap-2"
               >
                 {/* Active Section Identity: Clickable Website Logo (Redirects to Homepage) */}
                 <a
@@ -209,12 +213,12 @@ export function LandingExperience() {
       />
 
       {/* Mobile Quick-Action Command Dock (Bridge Touch Controls) */}
-      {activeModal === "none" && !isVideoOpen && (
-        <div className="md:hidden fixed bottom-6 left-0 right-0 z-40 px-4 flex justify-center pointer-events-none animate-in fade-in duration-300">
-          <div className="pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full border border-[#012169]/20 bg-[#F7F9FC]/95 backdrop-blur-lg shadow-[0_10px_30px_rgba(1,33,105,0.15)]">
+      {activeModal === "none" && !isVideoOpen && isBridgeReady && (
+        <div className="md:hidden fixed bottom-4 inset-x-0 z-40 px-3 flex justify-center pointer-events-none pb-[env(safe-area-inset-bottom)] animate-in fade-in slide-in-from-bottom-3 duration-300">
+          <div className="pointer-events-auto flex items-center gap-1 p-1 rounded-2xl border border-white/20 bg-[#081220]/85 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,0,0,0.45)]">
             <button
               onClick={handleReelsClick}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider text-[#012169] hover:bg-[#012169] hover:text-[#FFFFFF] active:bg-[#E4002B] active:text-[#FFFFFF] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider text-white hover:bg-[#E4002B] active:bg-[#E4002B] transition-colors cursor-pointer"
             >
               <Film className="h-3.5 w-3.5 text-[#E4002B]" />
               <span>Reels</span>
@@ -222,15 +226,15 @@ export function LandingExperience() {
 
             <button
               onClick={handlePlanetsClick}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider text-[#012169] hover:bg-[#012169] hover:text-[#FFFFFF] active:bg-[#E4002B] active:text-[#FFFFFF] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider text-white hover:bg-[#E4002B] active:bg-[#E4002B] transition-colors cursor-pointer"
             >
-              <Building2 className="h-3.5 w-3.5 text-[#012169]" />
-              <span>Details</span>
+              <Building2 className="h-3.5 w-3.5 text-[#E4002B]" />
+              <span>Showcase</span>
             </button>
 
             <button
               onClick={handleMainCharacterClick}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold uppercase tracking-wider bg-[#E4002B] text-white shadow-md active:scale-95 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-[#E4002B] text-white shadow-md active:scale-95 transition-all cursor-pointer"
             >
               <Play className="h-3.5 w-3.5 fill-current text-white" />
               <span>Intro</span>
@@ -238,9 +242,9 @@ export function LandingExperience() {
 
             <button
               onClick={handleThirdCharacterClick}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold uppercase tracking-wider text-[#012169] hover:bg-[#012169] hover:text-[#FFFFFF] active:bg-[#E4002B] active:text-[#FFFFFF] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider text-white hover:bg-[#E4002B] active:bg-[#E4002B] transition-colors cursor-pointer"
             >
-              <Mail className="h-3.5 w-3.5 text-[#012169]" />
+              <Mail className="h-3.5 w-3.5 text-[#E4002B]" />
               <span>Contact</span>
             </button>
           </div>

@@ -32,11 +32,12 @@ const frameSrc = (i: number) => `/hero_frames/video_frames/frame_${String(i + 1)
 // fill-rate without adding detail. Cap the backing store width.
 const MAX_CANVAS_W = 1920;
 
-// Frame 0..111: Ship approach over the ocean and push-in through the dome (scroll-scrubbed)
-// Frame 112..187: Inside the bridge (autoplays once on scroll completion, holds on the final frame)
-const CABIN_START_FRAME = 112; // frame_0113: camera has cleared the dome glass
-const CABIN_END_FRAME = 187;   // frame_0188: final bridge shot the crew CTAs are positioned against
-const PLAYBACK_FPS = 24;
+// The whole sequence is scroll-scrubbed (no autoplay): ship approach over the
+// ocean, push-in through the dome, then into the bridge. Scrolling up reverses it.
+const CABIN_END_FRAME = 187; // frame_0188: final bridge shot the crew CTAs are positioned against
+// Scroll progress at which the final frame is reached; the rest is a short
+// hold so the last bit of scroll doesn't nudge the camera.
+const SCRUB_END_PROGRESS = 0.97;
 
 interface CrewHotspot {
   key: string;
@@ -372,10 +373,9 @@ export function HeroFrameScene({
   }, [isDimmed]);
 
   // --------------------------------------------------------------------------
-  // HYBRID SMOOTH SCRUB & AUTOPLAY CONTROLLER
-  // Synchronizes frames with scroll progress until reaching the cabin,
-  // then seamlessly transitions to smooth continuous autoplay.
-  // Scrolling up reverses cleanly back out to space.
+  // SCROLL SCRUB CONTROLLER
+  // Scroll progress maps directly to the frame for the entire sequence.
+  // Scrolling up reverses cleanly back out over the ocean.
   // --------------------------------------------------------------------------
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -393,8 +393,6 @@ export function HeroFrameScene({
     lenisRef.current = lenis;
     lenis.on("scroll", ScrollTrigger.update);
 
-    const target = { index: 0 };
-    let lastTime = performance.now();
     let lastDrawn = -1;
     let lastCrewFrame = -1;
     let lastCrewDimmed = false;
@@ -402,35 +400,15 @@ export function HeroFrameScene({
 
     const tick = (now: number) => {
       lenis.raf(now);
-      const dt = Math.min((now - lastTime) / 1000, 0.1);
-      lastTime = now;
 
       // Read Lenis' smoothed progress directly (same frame, no event latency)
       const progress = Number.isFinite(lenis.progress) ? lenis.progress : scrollProgressRef.current;
       scrollProgressRef.current = progress;
       const cur = frameRef.current;
-      const isScrollComplete = progress >= 0.92;
 
-      if (isScrollComplete) {
-        // --- AUTOPLAY CABIN MODE (plays only once from Screenshot 1 to Screenshot 2, stops on final frame) ---
-        if (cur.index < CABIN_START_FRAME) {
-          // Smooth glide into Screenshot 1 (frame 145)
-          const diff = CABIN_START_FRAME - cur.index;
-          const k = 1 - Math.exp(-dt * 14); // frame-rate independent glide
-          cur.index += Math.abs(diff) < 0.05 ? diff : diff * k;
-        } else if (!isDimmedRef.current) {
-          // Plays smoothly forward from Screenshot 1 to Screenshot 2 (frame 240) and stops on final frame
-          if (cur.index < CABIN_END_FRAME) {
-            cur.index = Math.min(CABIN_END_FRAME, cur.index + dt * PLAYBACK_FPS);
-          }
-        }
-      } else {
-        // --- SCROLL SCRUB MODE ---
-        // Scroll smoothly controls space flight all the way up to Screenshot 1 (CABIN_START_FRAME)
-        // Lenis already smooths the scroll, so map it straight to the frame.
-        // (A second lerp on top made the scrub feel delayed / rubbery.)
-        cur.index = (progress / 0.92) * CABIN_START_FRAME;
-      }
+      // Lenis already smooths the scroll, so map it straight to the frame.
+      // (A second lerp on top makes the scrub feel delayed / rubbery.)
+      cur.index = Math.min(1, Math.max(0, progress / SCRUB_END_PROGRESS)) * CABIN_END_FRAME;
 
       // Draw current frame smoothly, clamped within sequence bounds
       const rounded = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(cur.index)));
@@ -520,7 +498,9 @@ export function HeroFrameScene({
         className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain no-scrollbar touch-pan-y"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
-        <div ref={trackRef} className="relative h-[260vh]">
+        {/* Taller track: all 188 frames are scrubbed now (was ~112 + autoplay),
+            so this keeps roughly the same scroll distance per frame. */}
+        <div ref={trackRef} className="relative h-[360vh]">
           <div className="sticky top-0 h-[100dvh] w-full overflow-hidden">
             {/* Frame sequence canvas and HUD elements scaled together */}
             <div ref={sceneRef} className="absolute inset-0 will-change-transform">

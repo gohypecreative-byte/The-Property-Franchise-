@@ -22,22 +22,20 @@ interface HeroFrameSceneProps {
 }
 
 // --------------------------------------------------------------------------
-// Image sequence configuration: 1280x720 clean frames from hero_frames
+// Image sequence configuration: 1920x1080 frames from hero_frames/video_frames
 // --------------------------------------------------------------------------
-const FRAME_COUNT = 240;
-const FRAME_W = 1280;
-const FRAME_H = 720;
-// WebP versions of the clean frames (~70KB each vs ~1.2MB PNG) so the whole
-// sequence downloads and decodes fast enough to scrub without stalls.
-const frameSrc = (i: number) => `/hero_frames/frame_${String(i + 1).padStart(4, "0")}-clean.webp`;
-// Source frames are 1280x720, so a canvas much larger than this only costs
+const FRAME_COUNT = 188;
+const FRAME_W = 1920;
+const FRAME_H = 1080;
+const frameSrc = (i: number) => `/hero_frames/video_frames/frame_${String(i + 1).padStart(4, "0")}.webp`;
+// Source frames are 1920x1080, so a canvas larger than this only costs
 // fill-rate without adding detail. Cap the backing store width.
 const MAX_CANVAS_W = 1920;
 
-// Frame 0..143: Spaceship approach and cockpit fly-in (scroll-scrubbed)
-// Frame 144..239: Bridge cabin scene (autoplay plays only once from Screenshot 1 to Screenshot 2 upon scroll completion)
-const CABIN_START_FRAME = 144; // Exact starting frame matching Screenshot 1 (frame_0145)
-const CABIN_END_FRAME = 239;   // Exact ending frame matching Screenshot 2 (frame_0240)
+// Frame 0..111: Ship approach over the ocean and push-in through the dome (scroll-scrubbed)
+// Frame 112..187: Inside the bridge (autoplays once on scroll completion, holds on the final frame)
+const CABIN_START_FRAME = 112; // frame_0113: camera has cleared the dome glass
+const CABIN_END_FRAME = 187;   // frame_0188: final bridge shot the crew CTAs are positioned against
 const PLAYBACK_FPS = 24;
 
 interface CrewHotspot {
@@ -54,10 +52,42 @@ interface CrewHotspot {
   top: number;
   width: number;
   height: number;
-  // Button anchor on 16:9 canvas (%)
+  // Button anchor on 16:9 canvas (%), measured on the final frame
   buttonLeft: number;
   buttonTop: number;
+  // Earlier anchor keyframes [frameIndex, left%, top%] so the label stays on
+  // its crew member while the camera is still pushing in. The final anchor
+  // (CABIN_END_FRAME, buttonLeft, buttonTop) is appended automatically.
+  track: [number, number, number][];
 }
+
+// CTAs fade in one after another while the user scrolls into the bridge,
+// driven by the frame index so they stay in sync with the picture (and fade
+// back out in reverse when scrolling up).
+const REVEAL_START_FRAME = 96; // crew are clearly visible from here
+const REVEAL_SPAN = 9;         // frames each CTA takes to fade in
+const REVEAL_STAGGER = 3;      // frames between consecutive CTAs
+// CTAs become clickable (and the mobile dock appears) once most are visible
+const CREW_READY_FRAME = REVEAL_START_FRAME + REVEAL_SPAN;
+
+const crewAnchorAt = (crew: CrewHotspot, frame: number): [number, number] => {
+  const keys = [...crew.track, [CABIN_END_FRAME, crew.buttonLeft, crew.buttonTop] as [number, number, number]];
+  if (frame <= keys[0][0]) return [keys[0][1], keys[0][2]];
+  for (let i = 1; i < keys.length; i++) {
+    const [f1, l1, t1] = keys[i];
+    if (frame <= f1) {
+      const [f0, l0, t0] = keys[i - 1];
+      const k = (frame - f0) / (f1 - f0);
+      return [l0 + (l1 - l0) * k, t0 + (t1 - t0) * k];
+    }
+  }
+  return [crew.buttonLeft, crew.buttonTop];
+};
+
+const smoothstep = (x: number) => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+};
 
 const CREW: CrewHotspot[] = [
   {
@@ -69,28 +99,14 @@ const CREW: CrewHotspot[] = [
     icon: Film,
     tagColor: "#E4002B",
     badgeNumber: "01",
-    left: 6,
-    top: 32,
-    width: 25,
-    height: 60,
-    buttonLeft: 18,
-    buttonTop: 42,
-  },
-  {
-    key: "captain",
-    role: "Commander",
-    stationName: "Command Helm",
-    action: "Watch Introduction",
-    description: "Captain's Briefing",
-    icon: Play,
-    tagColor: "#E4002B",
-    badgeNumber: "02",
-    left: 38,
-    top: 22,
-    width: 24,
-    height: 70,
-    buttonLeft: 50,
-    buttonTop: 62,
+    // Officer at the back-left console (behind the foreground navigator)
+    left: 14,
+    top: 50,
+    width: 10,
+    height: 26,
+    buttonLeft: 21,
+    buttonTop: 47,
+    track: [[99, 24.5, 48.5], [112, 24, 48], [143, 23, 47.5]],
   },
   {
     key: "navigator",
@@ -101,12 +117,34 @@ const CREW: CrewHotspot[] = [
     icon: Building2,
     tagColor: "#E4002B",
     badgeNumber: "03",
-    left: 58,
-    top: 24,
-    width: 20,
-    height: 64,
-    buttonLeft: 65.5,
-    buttonTop: 34.5,
+    // Foreground officer, bottom-left. Rendered after the archivist so this
+    // hotspot wins where the two overlap. Label sits on the chest because
+    // above the head would cover the archivist.
+    left: 4,
+    top: 58,
+    width: 32,
+    height: 42,
+    buttonLeft: 26,
+    buttonTop: 82,
+    track: [[99, 29, 76], [127, 28.5, 80], [159, 27.5, 81]],
+  },
+  {
+    key: "captain",
+    role: "Commander",
+    stationName: "Command Helm",
+    action: "Watch Introduction",
+    description: "Captain's Briefing",
+    icon: Play,
+    tagColor: "#E4002B",
+    badgeNumber: "02",
+    // Captain at the centre command desk
+    left: 43,
+    top: 48,
+    width: 24,
+    height: 42,
+    buttonLeft: 55,
+    buttonTop: 45,
+    track: [[99, 55, 44.5]],
   },
   {
     key: "comms",
@@ -117,12 +155,14 @@ const CREW: CrewHotspot[] = [
     icon: Mail,
     tagColor: "#E4002B",
     badgeNumber: "04",
-    left: 76,
-    top: 32,
-    width: 22,
-    height: 60,
-    buttonLeft: 86,
-    buttonTop: 48,
+    // Officer with headset at the right-hand console
+    left: 72,
+    top: 51,
+    width: 18,
+    height: 40,
+    buttonLeft: 81,
+    buttonTop: 49,
+    track: [[99, 75, 50], [143, 77, 49.5], [175, 79, 49]],
   },
 ];
 
@@ -152,6 +192,37 @@ export function HeroFrameScene({
   const [crewReady, setCrewReady] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
   const [firstLoaded, setFirstLoaded] = useState(false);
+
+  // --------------------------------------------------------------------------
+  // CREW CTAs: written straight to the DOM every frame (no React re-render)
+  // so the fade-in and position stay locked to the frame on screen.
+  // --------------------------------------------------------------------------
+  const crewButtonRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const crewHotspotRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const updateCrew = (frame: number, dimmed: boolean) => {
+    CREW.forEach((crew, i) => {
+      const start = REVEAL_START_FRAME + i * REVEAL_STAGGER;
+      const a = dimmed ? 0 : smoothstep((frame - start) / REVEAL_SPAN);
+      const [left, top] = crewAnchorAt(crew, frame);
+
+      const btn = crewButtonRefs.current[i];
+      if (btn) {
+        btn.style.left = `${left}%`;
+        btn.style.top = `${top}%`;
+        btn.style.opacity = String(a);
+        btn.style.transform = `translateY(${(1 - a) * 14}px) scale(${0.9 + 0.1 * a})`;
+        btn.style.pointerEvents = a > 0.6 ? "auto" : "none";
+      }
+
+      // Hotspot moves with its label so it stays over the crew member
+      const spot = crewHotspotRefs.current[i];
+      if (spot) {
+        spot.style.left = `${crew.left + (left - crew.buttonLeft)}%`;
+        spot.style.top = `${crew.top + (top - crew.buttonTop)}%`;
+        spot.style.pointerEvents = a > 0.6 ? "auto" : "none";
+      }
+    });
+  };
 
   const handlers: Record<string, (() => void) | undefined> = {
     captain: onMainCharacterClick,
@@ -325,6 +396,8 @@ export function HeroFrameScene({
     const target = { index: 0 };
     let lastTime = performance.now();
     let lastDrawn = -1;
+    let lastCrewFrame = -1;
+    let lastCrewDimmed = false;
     let rafId = 0;
 
     const tick = (now: number) => {
@@ -337,23 +410,6 @@ export function HeroFrameScene({
       scrollProgressRef.current = progress;
       const cur = frameRef.current;
       const isScrollComplete = progress >= 0.92;
-      const isBridgeVisible = progress >= 0.85;
-
-      // When the bridge comes into view, fade in the crew navigation buttons
-      if (isBridgeVisible) {
-        if (!readyRef.current) {
-          readyRef.current = true;
-          setCrewReady(true);
-          onBridgeReadyRef.current?.(true);
-          scifiAudio.playHoloBeep(920, 0.06);
-        }
-      } else if (progress < 0.75) {
-        if (readyRef.current) {
-          readyRef.current = false;
-          setCrewReady(false);
-          onBridgeReadyRef.current?.(false);
-        }
-      }
 
       if (isScrollComplete) {
         // --- AUTOPLAY CABIN MODE (plays only once from Screenshot 1 to Screenshot 2, stops on final frame) ---
@@ -381,6 +437,30 @@ export function HeroFrameScene({
       if (rounded !== lastDrawn) {
         lastDrawn = rounded;
         draw(rounded);
+      }
+
+      // Crew CTAs follow the same frame index as the picture
+      const dimmed = isDimmedRef.current;
+      if (rounded !== lastCrewFrame || dimmed !== lastCrewDimmed) {
+        lastCrewFrame = rounded;
+        lastCrewDimmed = dimmed;
+        updateCrew(rounded, dimmed);
+      }
+
+      // Enable the CTAs (and the mobile dock) once they have faded in on scroll
+      if (rounded >= CREW_READY_FRAME) {
+        if (!readyRef.current) {
+          readyRef.current = true;
+          setCrewReady(true);
+          onBridgeReadyRef.current?.(true);
+          scifiAudio.playHoloBeep(920, 0.06);
+        }
+      } else if (rounded < REVEAL_START_FRAME + 2) {
+        if (readyRef.current) {
+          readyRef.current = false;
+          setCrewReady(false);
+          onBridgeReadyRef.current?.(false);
+        }
       }
 
       rafId = requestAnimationFrame(tick);
@@ -457,13 +537,18 @@ export function HeroFrameScene({
                 style={{ width: "max(100vw, 177.78vh)", height: "max(100vh, 56.25vw)" }}
               >
                 {/* Hotspot bounding zones & floating navigation badges */}
-                {CREW.map((crew) => {
+                {/* Position, opacity and pointer-events of both elements below are
+                    driven per frame by updateCrew(); React only sets the initial state. */}
+                {CREW.map((crew, i) => {
                   const isHovered = hovered === crew.key;
 
                   return (
                     <React.Fragment key={crew.key}>
                       {/* Interactive Crew Hotspot Area with Targeting Reticles */}
                       <button
+                        ref={(el) => {
+                          crewHotspotRefs.current[i] = el;
+                        }}
                         onClick={() => {
                           scifiAudio.playHoloBeep(980, 0.1);
                           handlers[crew.key]?.();
@@ -478,25 +563,28 @@ export function HeroFrameScene({
                         disabled={!crewReady || isDimmed}
                         tabIndex={crewReady && !isDimmed ? 0 : -1}
                         aria-label={`${crew.role}: ${crew.action}`}
-                        className="group absolute rounded-2xl outline-none transition-all duration-300 cursor-pointer disabled:pointer-events-none"
+                        className="group absolute rounded-2xl outline-none cursor-pointer disabled:pointer-events-none"
                         style={{
                           left: `${crew.left}%`,
                           top: `${crew.top}%`,
                           width: `${crew.width}%`,
                           height: `${crew.height}%`,
+                          pointerEvents: "none",
                         }}
                       />
 
-                      {/* Chamfered Sci-Fi Station Navigation Button */}
+                      {/* Chamfered Sci-Fi Station Navigation Button (scroll-synced reveal) */}
                       <div
-                        className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-auto transition-all duration-500 ease-out z-20 ${
-                          crewReady && !isDimmed
-                            ? "opacity-100 scale-100"
-                            : "opacity-0 scale-90 pointer-events-none"
-                        }`}
+                        ref={(el) => {
+                          crewButtonRefs.current[i] = el;
+                        }}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 z-20 will-change-[opacity,transform]"
                         style={{
                           left: `${crew.buttonLeft}%`,
                           top: `${crew.buttonTop}%`,
+                          opacity: 0,
+                          pointerEvents: "none",
+                          transition: "filter 300ms ease-out",
                           filter: isHovered
                             ? "drop-shadow(0 8px 18px rgba(228, 0, 43, 0.4)) drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
                             : "drop-shadow(0 5px 14px rgba(1, 33, 105, 0.3)) drop-shadow(0 2px 4px rgba(0,0,0,0.2))",

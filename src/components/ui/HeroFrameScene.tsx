@@ -22,19 +22,16 @@ interface HeroFrameSceneProps {
 }
 
 // --------------------------------------------------------------------------
-// Image sequence configuration: 1920x1080 frames from hero_frames/video_frames
+// Image sequence configuration: 1920x1080 frames from public/hero_frames
 // --------------------------------------------------------------------------
-const FRAME_COUNT = 188;
+const FRAME_COUNT = 240;
 const FRAME_W = 1920;
 const FRAME_H = 1080;
-const frameSrc = (i: number) => `/hero_frames/video_frames/frame_${String(i + 1).padStart(4, "0")}.webp`;
-// Source frames are 1920x1080, so a canvas larger than this only costs
-// fill-rate without adding detail. Cap the backing store width.
-const MAX_CANVAS_W = 1920;
+const frameSrc = (i: number) => `/hero_frames/frame_${String(i + 1).padStart(4, "0")}.webp`;
 
 // The whole sequence is scroll-scrubbed (no autoplay): ship approach over the
 // ocean, push-in through the dome, then into the bridge. Scrolling up reverses it.
-const CABIN_END_FRAME = 187; // frame_0188: final bridge shot the crew CTAs are positioned against
+const CABIN_END_FRAME = FRAME_COUNT - 1; // frame_0240: final bridge shot the crew CTAs are positioned against
 // Scroll progress at which the final frame is reached; the rest is a short
 // hold so the last bit of scroll doesn't nudge the camera.
 const SCRUB_END_PROGRESS = 0.97;
@@ -65,9 +62,9 @@ interface CrewHotspot {
 // CTAs fade in one after another while the user scrolls into the bridge,
 // driven by the frame index so they stay in sync with the picture (and fade
 // back out in reverse when scrolling up).
-const REVEAL_START_FRAME = 96; // crew are clearly visible from here
-const REVEAL_SPAN = 9;         // frames each CTA takes to fade in
-const REVEAL_STAGGER = 3;      // frames between consecutive CTAs
+const REVEAL_START_FRAME = 118; // inside the bridge, crew clearly visible from here
+const REVEAL_SPAN = 12;         // frames each CTA takes to fade in
+const REVEAL_STAGGER = 4;       // frames between consecutive CTAs
 // CTAs become clickable (and the mobile dock appears) once most are visible
 const CREW_READY_FRAME = REVEAL_START_FRAME + REVEAL_SPAN;
 
@@ -85,6 +82,204 @@ const crewAnchorAt = (crew: CrewHotspot, frame: number): [number, number] => {
   return [crew.buttonLeft, crew.buttonTop];
 };
 
+// --------------------------------------------------------------------------
+// FRAME CACHE
+// 240 decoded 1080p frames would be ~2GB, far more than the browser keeps
+// decoded, so drawing plain <img> frames forced synchronous re-decodes on the
+// main thread mid-scroll (the jitter). Instead:
+// - every frame is fetched once and kept as a compressed Blob (~60MB total)
+// - a sliding window of frames around the playhead (biased in the scroll
+//   direction) is decoded OFF the main thread with createImageBitmap, already
+//   cropped + resized to the canvas, so drawing is a cheap 1:1 blit
+// - every 3rd frame is also kept as a small low-res bitmap, so a fast fling or
+//   jump always has something close to show while sharp frames catch up
+// --------------------------------------------------------------------------
+type Geom = { cw: number; ch: number; sx: number; sy: number; sw: number; sh: number };
+type Decoded = { bmp: ImageBitmap; g: Geom };
+
+const MAX_INFLIGHT_DECODES = 3;
+const LOW_STEP = 3;
+const LOW_PIXELS = 640 * 360;
+const FULL_BUDGET_BYTES = 320 * 1024 * 1024;
+
+// Visible source region of a cover-fitted frame for a canvas of cw x ch
+const computeGeom = (cw: number, ch: number): Geom => {
+  const scale = Math.max(cw / FRAME_W, ch / FRAME_H);
+  const sw = Math.min(FRAME_W, cw / scale);
+  const sh = Math.min(FRAME_H, ch / scale);
+  return { cw, ch, sx: (FRAME_W - sw) / 2, sy: (FRAME_H - sh) / 2, sw, sh };
+};
+
+class FrameCache {
+  blobs: (Blob | null)[] = new Array(FRAME_COUNT).fill(null);
+  full = new Map<number, Decoded>();
+  low = new Map<number, Decoded>();
+  geom: Geom;
+  private pendingFull = new Set<number>();
+  private pendingLow = new Set<number>();
+  private failed = new Set<number>();
+  private desired: number[] = [];
+  private desiredSet = new Set<number>();
+  private inflight = 0;
+  private focus = 0;
+  private resizeOpts = true;
+  private destroyed = false;
+
+  constructor(geom: Geom, private onDecoded: () => void) {
+    this.geom = geom;
+    this.setFocus(0, 1);
+  }
+
+  private budget() {
+    const g = this.geom;
+    const px = this.resizeOpts ? g.cw * g.ch : g.sw * g.sh;
+    return Math.max(12, Math.min(FRAME_COUNT, Math.floor(FULL_BUDGET_BYTES / (px * 4))));
+  }
+
+  addBlob(i: number, blob: Blob) {
+    if (this.destroyed) return;
+    this.blobs[i] = blob;
+    this.pump();
+  }
+
+  setGeometry(g: Geom) {
+    if (this.destroyed) return;
+    const o = this.geom;
+    if (o.cw === g.cw && o.ch === g.ch) return;
+    // Existing bitmaps stay drawable (mapped by their own geometry) until
+    // their replacements at the new size arrive.
+    this.geom = g;
+    this.pendingFull = new Set();
+    this.pendingLow = new Set();
+    this.setFocus(this.focus, 1);
+  }
+
+  // Decode window: the playhead frame, then two frames ahead (in the scroll
+  // direction) for every one behind, up to the memory budget.
+  setFocus(center: number, dir: number) {
+    if (this.destroyed) return;
+    this.focus = center;
+    const n = this.budget();
+    const list = [center];
+    let a = 1;
+    let b = 1;
+    while (list.length < n && (a < FRAME_COUNT || b < FRAME_COUNT)) {
+      for (let k = 0; k < 2 && list.length < n; k++, a++) {
+        const f = center + dir * a;
+        if (f >= 0 && f < FRAME_COUNT) list.push(f);
+      }
+      if (list.length < n) {
+        const f = center - dir * b;
+        if (f >= 0 && f < FRAME_COUNT) list.push(f);
+      }
+      b++;
+    }
+    this.desired = list;
+    this.desiredSet = new Set(list);
+    for (const [i, d] of this.full) {
+      if (!this.desiredSet.has(i)) {
+        d.bmp.close();
+        this.full.delete(i);
+      }
+    }
+    this.pump();
+  }
+
+  private nextJob(): { i: number; low: boolean } | null {
+    for (const i of this.desired) {
+      if (!this.blobs[i] || this.failed.has(i) || this.pendingFull.has(i)) continue;
+      if (this.full.get(i)?.g !== this.geom) return { i, low: false };
+    }
+    if (!this.resizeOpts) return null;
+    for (let o = 0; o < FRAME_COUNT; o++) {
+      for (const i of [this.focus - o, this.focus + o]) {
+        if (i < 0 || i >= FRAME_COUNT) continue;
+        if (i % LOW_STEP !== 0 && i !== FRAME_COUNT - 1) continue;
+        if (!this.blobs[i] || this.failed.has(i) || this.pendingLow.has(i)) continue;
+        if (this.low.get(i)?.g !== this.geom) return { i, low: true };
+      }
+    }
+    return null;
+  }
+
+  private pump() {
+    while (!this.destroyed && this.inflight < MAX_INFLIGHT_DECODES) {
+      const job = this.nextJob();
+      if (!job) return;
+      this.run(job.i, job.low);
+    }
+  }
+
+  private run(i: number, low: boolean) {
+    const g = this.geom;
+    const pending = low ? this.pendingLow : this.pendingFull;
+    pending.add(i);
+    this.inflight++;
+    const ls = low ? Math.min(1, Math.sqrt(LOW_PIXELS / (g.cw * g.ch))) : 1;
+    this.decode(this.blobs[i]!, g, ls).then((bmp) => {
+      pending.delete(i);
+      this.inflight--;
+      if (!bmp) {
+        this.failed.add(i);
+      } else if (this.destroyed || g !== this.geom || (!low && !this.desiredSet.has(i))) {
+        bmp.close();
+      } else {
+        const map = low ? this.low : this.full;
+        map.get(i)?.bmp.close();
+        map.set(i, { bmp, g });
+        this.onDecoded();
+      }
+      this.pump();
+    });
+  }
+
+  private async decode(blob: Blob, g: Geom, ls: number): Promise<ImageBitmap | null> {
+    const sx = Math.round(g.sx);
+    const sy = Math.round(g.sy);
+    const sw = Math.max(1, Math.round(g.sw));
+    const sh = Math.max(1, Math.round(g.sh));
+    if (this.resizeOpts) {
+      try {
+        return await createImageBitmap(blob, sx, sy, sw, sh, {
+          resizeWidth: Math.max(1, Math.round(g.cw * ls)),
+          resizeHeight: Math.max(1, Math.round(g.ch * ls)),
+          resizeQuality: "high",
+        });
+      } catch {
+        this.resizeOpts = false; // older browsers: crop only, scale at draw time
+      }
+    }
+    try {
+      return await createImageBitmap(blob, sx, sy, sw, sh);
+    } catch {
+      return null;
+    }
+  }
+
+  // Best available picture near idx: sharp frames close by, else the nearest
+  // low-res frame, else any sharp frame.
+  nearest(idx: number): Decoded | null {
+    const r = Math.round(idx);
+    for (let o = 0; o <= 4; o++) {
+      const f = this.full.get(r - o) ?? this.full.get(r + o);
+      if (f) return f;
+    }
+    for (let o = 0; o < FRAME_COUNT; o++) {
+      const d = this.low.get(r - o) ?? this.low.get(r + o) ?? this.full.get(r - o) ?? this.full.get(r + o);
+      if (d) return d;
+    }
+    return null;
+  }
+
+  destroy() {
+    this.destroyed = true;
+    for (const d of this.full.values()) d.bmp.close();
+    for (const d of this.low.values()) d.bmp.close();
+    this.full.clear();
+    this.low.clear();
+  }
+}
+
 const smoothstep = (x: number) => {
   const t = Math.min(1, Math.max(0, x));
   return t * t * (3 - 2 * t);
@@ -100,14 +295,15 @@ const CREW: CrewHotspot[] = [
     icon: Film,
     tagColor: "#E4002B",
     badgeNumber: "01",
-    // Officer at the back-left console (behind the foreground navigator)
-    left: 14,
-    top: 50,
+    // Officer at the back-left console (behind the foreground navigator).
+    // Label sits just above her head.
+    left: 15,
+    top: 36,
     width: 10,
-    height: 26,
-    buttonLeft: 21,
-    buttonTop: 47,
-    track: [[99, 24.5, 48.5], [112, 24, 48], [143, 23, 47.5]],
+    height: 38,
+    buttonLeft: 20,
+    buttonTop: 32,
+    track: [[119, 28, 37], [149, 24, 35], [179, 22, 34], [209, 20.3, 33.3]],
   },
   {
     key: "navigator",
@@ -118,16 +314,16 @@ const CREW: CrewHotspot[] = [
     icon: Building2,
     tagColor: "#E4002B",
     badgeNumber: "03",
-    // Foreground officer, bottom-left. Rendered after the archivist so this
-    // hotspot wins where the two overlap. Label sits on the chest because
-    // above the head would cover the archivist.
-    left: 4,
-    top: 58,
-    width: 32,
-    height: 42,
-    buttonLeft: 26,
-    buttonTop: 82,
-    track: [[99, 29, 76], [127, 28.5, 80], [159, 27.5, 81]],
+    // Foreground officer, far left. Rendered after the archivist so this
+    // hotspot wins where the two overlap. Label sits on the shoulder/chest
+    // because above the head would collide with the archivist's label.
+    left: 0,
+    top: 32,
+    width: 17,
+    height: 68,
+    buttonLeft: 10,
+    buttonTop: 58,
+    track: [[119, 23, 52], [149, 18.5, 53], [179, 14, 53.5], [209, 11.2, 55]],
   },
   {
     key: "captain",
@@ -138,14 +334,14 @@ const CREW: CrewHotspot[] = [
     icon: Play,
     tagColor: "#E4002B",
     badgeNumber: "02",
-    // Captain at the centre command desk
-    left: 43,
-    top: 48,
-    width: 24,
-    height: 42,
-    buttonLeft: 55,
-    buttonTop: 45,
-    track: [[99, 55, 44.5]],
+    // Captain at the centre command desk. Label on the chest, below the badge.
+    left: 35,
+    top: 23,
+    width: 31,
+    height: 55,
+    buttonLeft: 50,
+    buttonTop: 62,
+    track: [[119, 50, 54], [149, 49.5, 53.5], [179, 50, 55.5], [209, 50, 59]],
   },
   {
     key: "comms",
@@ -156,14 +352,14 @@ const CREW: CrewHotspot[] = [
     icon: Mail,
     tagColor: "#E4002B",
     badgeNumber: "04",
-    // Officer with headset at the right-hand console
-    left: 72,
-    top: 51,
-    width: 18,
-    height: 40,
-    buttonLeft: 81,
-    buttonTop: 49,
-    track: [[99, 75, 50], [143, 77, 49.5], [175, 79, 49]],
+    // Officer at the right-hand console. Label just above his head.
+    left: 81,
+    top: 31,
+    width: 19,
+    height: 59,
+    buttonLeft: 89,
+    buttonTop: 29,
+    track: [[119, 79, 35], [149, 83, 32], [179, 86, 30], [209, 88, 30]],
   },
 ];
 
@@ -180,7 +376,10 @@ export function HeroFrameScene({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
   const hintRef = useRef<HTMLDivElement>(null);
-  const imagesRef = useRef<HTMLImageElement[]>([]);
+  const cacheRef = useRef<FrameCache | null>(null);
+  const viewRef = useRef<Geom>(computeGeom(FRAME_W, FRAME_H));
+  const dirtyRef = useRef(true);
+  const firstShownRef = useRef(false);
   const frameRef = useRef({ index: 0 });
   const scrollProgressRef = useRef(0);
   const readyRef = useRef(false);
@@ -233,137 +432,164 @@ export function HeroFrameScene({
   };
 
   // --------------------------------------------------------------------------
-  // CANVAS DRAWING: cover-fit the current frame with seamless loop crossfade
+  // CANVAS DRAWING
+  // Draws the fractional frame index: the two neighbouring frames are
+  // crossfaded so slow scrolling glides instead of stepping frame-to-frame.
   // --------------------------------------------------------------------------
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const draw = (index: number, blendIndex?: number, blendAlpha?: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    if (!ctxRef.current) {
-      ctxRef.current = canvas.getContext("2d", { alpha: false, desynchronized: true });
-    }
-    const ctx = ctxRef.current;
-    if (!ctx) return;
 
-    // Nearest loaded frame (searching both directions) so a missing frame
-    // never snaps the picture far back in the sequence.
-    const getValidImg = (targetIdx: number) => {
-      const t = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round(targetIdx)));
-      for (let off = 0; off < FRAME_COUNT; off++) {
-        const a = imagesRef.current[t - off];
-        if (a) return a;
-        const b = imagesRef.current[t + off];
-        if (b) return b;
-        if (t - off < 0 && t + off >= FRAME_COUNT) break;
-      }
-      return null;
-    };
-
-    const imgA = getValidImg(index);
-    if (!imgA) return;
-
-    const cw = canvas.width;
-    const ch = canvas.height;
-    const scale = Math.max(cw / FRAME_W, ch / FRAME_H);
-    const w = FRAME_W * scale;
-    const h = FRAME_H * scale;
-    const dx = (cw - w) / 2;
-    const dy = (ch - h) / 2;
-
-    if (blendIndex !== undefined && blendAlpha !== undefined && blendAlpha > 0.02) {
-      const imgB = getValidImg(blendIndex);
-      if (imgB && imgB !== imgA) {
-        ctx.globalAlpha = 1;
-        ctx.drawImage(imgA, dx, dy, w, h);
-        ctx.globalAlpha = Math.min(1, Math.max(0, blendAlpha));
-        ctx.drawImage(imgB, dx, dy, w, h);
-        ctx.globalAlpha = 1;
-        return;
-      }
-    }
-
-    ctx.globalAlpha = 1;
-    ctx.drawImage(imgA, dx, dy, w, h);
+  // Map a bitmap (decoded for geometry d.g) onto the current canvas view.
+  // Normally d.g === view, which makes this a plain 1:1 blit.
+  const blit = (ctx: CanvasRenderingContext2D, d: Decoded, view: Geom) => {
+    const k = view.cw / view.sw;
+    ctx.drawImage(d.bmp, (d.g.sx - view.sx) * k, (d.g.sy - view.sy) * k, d.g.sw * k, d.g.sh * k);
   };
 
-  // Size the canvas to screen at device pixel ratio
+  const draw = (idx: number): boolean => {
+    const canvas = canvasRef.current;
+    const cache = cacheRef.current;
+    if (!canvas || !cache) return false;
+    if (!ctxRef.current) {
+      ctxRef.current = canvas.getContext("2d", { alpha: false });
+    }
+    const ctx = ctxRef.current;
+    if (!ctx) return false;
+    const view = viewRef.current;
+
+    const i0 = Math.max(0, Math.min(FRAME_COUNT - 1, Math.floor(idx)));
+    const i1 = Math.min(FRAME_COUNT - 1, i0 + 1);
+    const t = idx - i0;
+    const a = cache.full.get(i0);
+    const b = cache.full.get(i1);
+
+    let base: Decoded | null | undefined;
+    let top: Decoded | null = null;
+    if (a && b && i1 !== i0) {
+      base = a;
+      if (t > 0.01) top = b;
+    } else {
+      base = (t < 0.5 ? a ?? b : b ?? a) ?? cache.nearest(idx);
+    }
+    if (!base) return false;
+
+    ctx.globalAlpha = 1;
+    if (base.g !== view) {
+      ctx.fillStyle = "#081220";
+      ctx.fillRect(0, 0, view.cw, view.ch);
+    }
+    blit(ctx, base, view);
+    if (top) {
+      ctx.globalAlpha = Math.min(1, t);
+      blit(ctx, top, view);
+      ctx.globalAlpha = 1;
+    }
+
+    if (!firstShownRef.current) {
+      firstShownRef.current = true;
+      setFirstLoaded(true);
+    }
+    return true;
+  };
+
+  // Size the canvas so the frame is resampled only once, never twice:
+  // - Screen has MORE pixels than the visible part of the frame (Retina, 4K,
+  //   phones in portrait): back the canvas with exactly the visible source
+  //   region at 1:1 and let the GPU upscale the element once.
+  // - Screen has FEWER pixels: draw at device resolution with high-quality
+  //   smoothing so the downscale is filtered (no shimmering rings/edges).
+  // Either way the backing store never exceeds the 1920x1080 source.
+  // Bitmaps are decoded at exactly the canvas size, so smoothing only matters
+  // for the brief moment after a resize before re-decoded frames arrive.
   useEffect(() => {
+    let geomTimer = 0;
     const resize = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      let w = window.innerWidth * dpr;
-      let h = window.innerHeight * dpr;
-      if (w > MAX_CANVAS_W) {
-        h *= MAX_CANVAS_W / w;
-        w = MAX_CANVAS_W;
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const devW = window.innerWidth * dpr;
+      const devH = window.innerHeight * dpr;
+      const coverScale = Math.max(devW / FRAME_W, devH / FRAME_H);
+      const k = Math.min(1, 1 / coverScale);
+      const cw = Math.max(1, Math.round(devW * k));
+      const ch = Math.max(1, Math.round(devH * k));
+      if (canvas.width === cw && canvas.height === ch && cacheRef.current) return;
+      canvas.width = cw;
+      canvas.height = ch;
+      viewRef.current = computeGeom(cw, ch);
+
+      // Resizing resets 2D context state, so (re)apply smoothing every time.
+      if (!ctxRef.current) {
+        ctxRef.current = canvas.getContext("2d", { alpha: false });
       }
-      canvas.width = Math.round(w);
-      canvas.height = Math.round(h);
       const ctx = ctxRef.current;
       if (ctx) {
         ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "medium";
+        ctx.imageSmoothingQuality = "high";
       }
-      draw(Math.round(frameRef.current.index));
+      draw(frameRef.current.index);
+      dirtyRef.current = true;
+
+      // Re-decode at the new size once resizing settles (e.g. window drag,
+      // mobile URL bar), drawing the old bitmaps scaled meanwhile.
+      window.clearTimeout(geomTimer);
+      geomTimer = window.setTimeout(() => {
+        cacheRef.current?.setGeometry(viewRef.current);
+      }, 200);
     };
     resize();
     window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    return () => {
+      window.clearTimeout(geomTimer);
+      window.removeEventListener("resize", resize);
+    };
   }, []);
 
   // --------------------------------------------------------------------------
-  // PRELOAD SEQUENCE: Priority chunks ensure zero scroll lag
+  // PRELOAD SEQUENCE: fetch every frame once as a compressed blob, coarse
+  // pass first (every 4th frame) so the whole flight is quickly scrubbable.
+  // Decoding is handled by FrameCache around the playhead.
   // --------------------------------------------------------------------------
   useEffect(() => {
-    let isCancelled = false;
-    const images: HTMLImageElement[] = new Array(FRAME_COUNT);
+    const cache = new FrameCache(viewRef.current, () => {
+      dirtyRef.current = true;
+    });
+    cacheRef.current = cache;
+    // No AbortController: aborting in-flight fetches surfaces as unhandled
+    // AbortErrors in dev (Strict Mode unmounts once). Workers just stop and
+    // late results are dropped (cache.addBlob is a no-op after destroy).
+    let cancelled = false;
 
-    const loadImage = (index: number): Promise<void> => {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.decoding = "async";
-        img.onload = () => {
-          if (isCancelled) return resolve();
-          img
-            .decode()
-            .catch(() => {})
-            .finally(() => {
-              if (isCancelled) return resolve();
-              images[index] = img;
-              if (index === 0) setFirstLoaded(true);
-              // Repaint if this is the frame currently on screen (it may have
-              // been showing a nearby fallback frame until now).
-              if (index === Math.round(frameRef.current.index)) draw(index);
-              resolve();
-            });
-        };
-        img.onerror = () => resolve();
-        img.src = frameSrc(index);
-      });
-    };
-
-    imagesRef.current = images;
-
-    // Load in two passes so the whole flight is quickly scrubbable:
-    // pass 1 = every 4th frame (coarse coverage), pass 2 = the rest, in scroll order.
-    // A small worker pool keeps the network busy without flooding the decoder.
     const order: number[] = [];
     for (let i = 0; i < FRAME_COUNT; i += 4) order.push(i);
-    for (let i = 0; i < FRAME_COUNT; i++) if (i % 4 !== 0) order.push(i);
+    order.push(FRAME_COUNT - 1);
+    for (let i = 0; i < FRAME_COUNT - 1; i++) if (i % 4 !== 0) order.push(i);
+
+    const load = async (i: number) => {
+      try {
+        const res = await fetch(frameSrc(i));
+        if (!res.ok || cancelled) return;
+        const blob = await res.blob();
+        if (!cancelled) cache.addBlob(i, blob);
+      } catch {
+        /* network error: frame falls back to a neighbour */
+      }
+    };
 
     let next = 0;
     const worker = async () => {
-      while (!isCancelled && next < order.length) {
-        await loadImage(order[next++]);
+      while (!cancelled && next < order.length) {
+        await load(order[next++]);
       }
     };
-    loadImage(order[next++]).then(() => {
+    load(order[next++]).then(() => {
+      if (cancelled) return;
       for (let w = 0; w < 6; w++) worker();
     });
 
     return () => {
-      isCancelled = true;
+      cancelled = true;
+      cache.destroy();
+      if (cacheRef.current === cache) cacheRef.current = null;
     };
   }, []);
 
@@ -393,8 +619,9 @@ export function HeroFrameScene({
     lenisRef.current = lenis;
     lenis.on("scroll", ScrollTrigger.update);
 
-    let lastDrawn = -1;
-    let lastCrewFrame = -1;
+    let lastDrawnIdx = -1;
+    let lastFocus = -1;
+    let lastCrewIdx = -1;
     let lastCrewDimmed = false;
     let rafId = 0;
 
@@ -408,21 +635,31 @@ export function HeroFrameScene({
 
       // Lenis already smooths the scroll, so map it straight to the frame.
       // (A second lerp on top makes the scrub feel delayed / rubbery.)
+      // The index stays fractional so draw() can blend neighbouring frames.
       cur.index = Math.min(1, Math.max(0, progress / SCRUB_END_PROGRESS)) * CABIN_END_FRAME;
+      const idx = cur.index;
+      const rounded = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(idx)));
 
-      // Draw current frame smoothly, clamped within sequence bounds
-      const rounded = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(cur.index)));
-      if (rounded !== lastDrawn) {
-        lastDrawn = rounded;
-        draw(rounded);
+      // Keep the decode window centred on the playhead, leaning the way we scroll
+      if (rounded !== lastFocus) {
+        const dir = lastFocus < 0 || rounded >= lastFocus ? 1 : -1;
+        lastFocus = rounded;
+        cacheRef.current?.setFocus(rounded, dir);
       }
 
-      // Crew CTAs follow the same frame index as the picture
+      if (dirtyRef.current || Math.abs(idx - lastDrawnIdx) > 0.004) {
+        if (draw(idx)) {
+          lastDrawnIdx = idx;
+          dirtyRef.current = false;
+        }
+      }
+
+      // Crew CTAs follow the same (fractional) frame index as the picture
       const dimmed = isDimmedRef.current;
-      if (rounded !== lastCrewFrame || dimmed !== lastCrewDimmed) {
-        lastCrewFrame = rounded;
+      if (Math.abs(idx - lastCrewIdx) > 0.01 || dimmed !== lastCrewDimmed) {
+        lastCrewIdx = idx;
         lastCrewDimmed = dimmed;
-        updateCrew(rounded, dimmed);
+        updateCrew(idx, dimmed);
       }
 
       // Enable the CTAs (and the mobile dock) once they have faded in on scroll
@@ -498,9 +735,9 @@ export function HeroFrameScene({
         className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain no-scrollbar touch-pan-y"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
-        {/* Taller track: all 188 frames are scrubbed now (was ~112 + autoplay),
-            so this keeps roughly the same scroll distance per frame. */}
-        <div ref={trackRef} className="relative h-[360vh]">
+        {/* Track height scales with the 240-frame sequence so each frame
+            gets roughly the same scroll distance as before. */}
+        <div ref={trackRef} className="relative h-[460vh]">
           <div className="sticky top-0 h-[100dvh] w-full overflow-hidden">
             {/* Frame sequence canvas and HUD elements scaled together */}
             <div ref={sceneRef} className="absolute inset-0 will-change-transform">
